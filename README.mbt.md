@@ -63,6 +63,15 @@ let comparison = @moondeteval.compare_predictions(
 let ap50_change = comparison.metrics()[1].delta()
 
 ///|
+let yolo_predictions = @moondeteval.parse_yolo_detections(
+  yolo_txt,
+  dataset,
+  9,
+  [42, 7],
+  first_detection_id=100,
+)
+
+///|
 let retained = report.counts().evaluated_detections()
 
 ///|
@@ -76,6 +85,8 @@ let explicit_ignore = @moondeteval.EvalConfig::new(
 ```
 
 The public API also supports `Image::new`, `Category::new`, `Box::from_xywh`, `GroundTruth::new`, `Detection::new`, and `Dataset::new` for callers with records already in memory. Detection IDs must be unique per evaluation; the JSON adapter assigns zero-based IDs from source order. Coordinates and scores must be finite, and boxes must have positive dimensions. Image and category IDs may be sparse or zero. Custom IoU thresholds must be strictly increasing in `(0,1]`; AP and AR average over them, while AP50 and AP75 remain fixed probes. Area bins and maxDets remain the COCO defaults. With no `--output`, the CLI prints JSON to standard output.
+
+`parse_yolo_detections` accepts one image's six-column YOLO prediction TXT (`class_index center_x center_y width height confidence`). [Ultralytics `save_txt`](https://docs.ultralytics.com/reference/engine/results/#ultralytics.engine.results.Results.save_txt) omits confidence by default, so use `save_conf=True`; five-column training labels and seven-column tracking rows are intentionally rejected here because AP requires a score and tracking IDs are outside this adapter's scope. Pass the ground-truth `Dataset`, its image ID, and an explicit category map: `[42, 7]` maps YOLO class 0 to category 42 and class 1 to category 7. It uses that image's width and height to convert normalized center coordinates to continuous boxes, skips blank lines, and gives nonblank rows sequential IDs starting at `first_detection_id`. Use a nonoverlapping ID range when combining multiple image files. Class indices must be mapped, center/score fields must lie in `[0,1]`, and normalized width/height in `(0,1]`; errors identify the source line and field. A derived box that crosses the image edge is retained for evaluation and produces a quality warning. This is an in-memory adapter; the native CLI currently reads COCO JSON files.
 
 The [independent consumer](https://github.com/python123-ops/moondeteval/blob/main/examples/consumer/consumer_test.mbt) is a separate MoonBit module linked to this checkout by its `moon.work` file. It checks the public API and includes a [small MBMOT detector adapter](https://github.com/python123-ops/moondeteval/blob/main/examples/consumer/mbmot_adapter.mbt): MBMOT detection boxes, scores, and class IDs become MoonDetEval predictions for a supplied image ID. Tracking IDs and MOT metrics are deliberately not involved. Run `moon test --target all --deny-warn` from `examples/consumer` to verify it. This is local workspace validation; installation of a published MoonDetEval version remains a separate release check.
 

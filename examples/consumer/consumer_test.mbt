@@ -14,6 +14,15 @@ test "independent module calls MoonDetEval public API" {
   let comparison = @moondeteval.compare_predictions(dataset, [detection], [])
   assert_eq(comparison.metrics()[1].name(), "ap50")
   assert_eq(comparison.metrics()[1].delta(), Some(-1.0))
+  let yolo = @moondeteval.parse_yolo_detections(
+    "0 0.5 0.5 1 1 0.9",
+    dataset,
+    1,
+    [2],
+    first_detection_id=5,
+  )
+  assert_eq(yolo[0].id(), 5)
+  assert_eq(@moondeteval.evaluate(dataset, yolo).summary().ap50(), 1.0)
 }
 
 ///|

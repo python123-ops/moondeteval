@@ -20,6 +20,8 @@ pub fn parse_coco_dataset(String) -> Dataset raise EvalError
 
 pub fn parse_coco_detections(String) -> Array[Detection] raise EvalError
 
+pub fn parse_yolo_detections(String, Dataset, Int, Array[Int], first_detection_id? : Int) -> Array[Detection] raise EvalError
+
 // Errors
 pub(all) suberror EvalError {
   InvalidBox(String)
