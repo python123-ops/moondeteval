@@ -16,10 +16,21 @@ pub extend Box with Eq::{equal, not_equal}
 ///|
 pub(all) suberror EvalError {
   InvalidBox(String)
+  InvalidInput(String)
+  InvalidConfig(String)
 } derive(Debug)
 
 ///|
 pub extend EvalError with Debug::{to_repr}
+
+///|
+pub fn EvalError::message(self : EvalError) -> String {
+  match self {
+    InvalidBox(reason) => "invalid box: " + reason
+    InvalidInput(reason) => "invalid input: " + reason
+    InvalidConfig(reason) => "invalid configuration: " + reason
+  }
+}
 
 ///|
 fn finite(value : Double) -> Bool {

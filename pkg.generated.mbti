@@ -6,11 +6,19 @@ import {
 }
 
 // Values
+pub fn evaluate(Dataset, Array[Detection]) -> EvaluationReport raise EvalError
+
+pub fn parse_coco_dataset(String) -> Dataset raise EvalError
+
+pub fn parse_coco_detections(String) -> Array[Detection] raise EvalError
 
 // Errors
 pub(all) suberror EvalError {
   InvalidBox(String)
+  InvalidInput(String)
+  InvalidConfig(String)
 } derive(@debug.Debug)
+pub fn EvalError::message(Self) -> String
 pub fn EvalError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
@@ -28,6 +36,125 @@ pub fn Box::new(Double, Double, Double, Double) -> Self raise EvalError
 pub fn Box::not_equal(Self, Self) -> Bool
 pub fn Box::to_repr(Self) -> @debug.Repr
 pub fn Box::to_xywh(Self) -> (Double, Double, Double, Double)
+
+pub struct Category {
+  id : Int
+  name : String
+} derive(Eq, @debug.Debug)
+pub fn Category::equal(Self, Self) -> Bool
+pub fn Category::id(Self) -> Int
+pub fn Category::name(Self) -> String
+pub fn Category::new(Int, String) -> Self raise EvalError
+pub fn Category::not_equal(Self, Self) -> Bool
+pub fn Category::to_repr(Self) -> @debug.Repr
+
+pub struct ClassMetrics {
+  category_id : Int
+  metrics : Metrics
+} derive(ToJson)
+pub fn ClassMetrics::category_id(Self) -> Int
+pub fn ClassMetrics::metrics(Self) -> Metrics
+pub fn ClassMetrics::to_json(Self) -> Json
+
+pub struct Dataset {
+  images : Array[Image]
+  categories : Array[Category]
+  truths : Array[GroundTruth]
+}
+pub fn Dataset::categories(Self) -> Array[Category]
+pub fn Dataset::images(Self) -> Array[Image]
+pub fn Dataset::new(Array[Image], Array[Category], Array[GroundTruth]) -> Self raise EvalError
+pub fn Dataset::truths(Self) -> Array[GroundTruth]
+
+pub struct Detection {
+  id : Int
+  image_id : Int
+  category_id : Int
+  bbox : Box
+  score : Double
+} derive(Eq, @debug.Debug)
+pub fn Detection::bbox(Self) -> Box
+pub fn Detection::category_id(Self) -> Int
+pub fn Detection::equal(Self, Self) -> Bool
+pub fn Detection::id(Self) -> Int
+pub fn Detection::image_id(Self) -> Int
+pub fn Detection::new(Int, Int, Int, Box, Double) -> Self raise EvalError
+pub fn Detection::not_equal(Self, Self) -> Bool
+pub fn Detection::score(Self) -> Double
+pub fn Detection::to_repr(Self) -> @debug.Repr
+
+pub struct EvaluationReport {
+  schema_version : String
+  summary : Metrics
+  classes : Array[ClassMetrics]
+} derive(ToJson)
+pub fn EvaluationReport::classes(Self) -> Array[ClassMetrics]
+pub fn EvaluationReport::summary(Self) -> Metrics
+pub fn EvaluationReport::to_json(Self) -> Json
+pub fn EvaluationReport::to_json_string(Self) -> String
+
+pub struct GroundTruth {
+  id : Int
+  image_id : Int
+  category_id : Int
+  bbox : Box
+  area : Double
+  iscrowd : Bool
+  ignore : Bool
+} derive(Eq, @debug.Debug)
+pub fn GroundTruth::area(Self) -> Double
+pub fn GroundTruth::bbox(Self) -> Box
+pub fn GroundTruth::category_id(Self) -> Int
+pub fn GroundTruth::equal(Self, Self) -> Bool
+pub fn GroundTruth::id(Self) -> Int
+pub fn GroundTruth::ignore(Self) -> Bool
+pub fn GroundTruth::image_id(Self) -> Int
+pub fn GroundTruth::iscrowd(Self) -> Bool
+pub fn GroundTruth::new(Int, Int, Int, Box, area~ : Double, iscrowd? : Bool, ignore? : Bool) -> Self raise EvalError
+pub fn GroundTruth::not_equal(Self, Self) -> Bool
+pub fn GroundTruth::to_repr(Self) -> @debug.Repr
+
+pub struct Image {
+  id : Int
+  width : Int
+  height : Int
+} derive(Eq, @debug.Debug)
+pub fn Image::equal(Self, Self) -> Bool
+pub fn Image::height(Self) -> Int
+pub fn Image::id(Self) -> Int
+pub fn Image::new(Int, Int, Int) -> Self raise EvalError
+pub fn Image::not_equal(Self, Self) -> Bool
+pub fn Image::to_repr(Self) -> @debug.Repr
+pub fn Image::width(Self) -> Int
+
+pub struct Metrics {
+  ap : Double
+  ap50 : Double
+  ap75 : Double
+  ap_small : Double
+  ap_medium : Double
+  ap_large : Double
+  ar1 : Double
+  ar10 : Double
+  ar100 : Double
+  ar_small : Double
+  ar_medium : Double
+  ar_large : Double
+} derive(ToJson, @debug.Debug)
+pub fn Metrics::ap(Self) -> Double
+pub fn Metrics::ap50(Self) -> Double
+pub fn Metrics::ap75(Self) -> Double
+pub fn Metrics::ap_large(Self) -> Double
+pub fn Metrics::ap_medium(Self) -> Double
+pub fn Metrics::ap_small(Self) -> Double
+pub fn Metrics::ar1(Self) -> Double
+pub fn Metrics::ar10(Self) -> Double
+pub fn Metrics::ar100(Self) -> Double
+pub fn Metrics::ar_large(Self) -> Double
+pub fn Metrics::ar_medium(Self) -> Double
+pub fn Metrics::ar_small(Self) -> Double
+pub fn Metrics::to_json(Self) -> Json
+pub fn Metrics::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 

@@ -25,11 +25,13 @@ test "IoU remains finite when the direct area sum would overflow" {
 test "invalid and non-finite boxes are rejected" {
   try @moondeteval.Box::new(0.0, 0.0, 0.0, 1.0) catch {
     @moondeteval.InvalidBox(_) => ()
+    _ => fail("unexpected error type")
   } noraise {
     _ => fail("zero-width box was accepted")
   }
   try @moondeteval.Box::new(0.0, 0.0, @double.infinity, 1.0) catch {
     @moondeteval.InvalidBox(_) => ()
+    _ => fail("unexpected error type")
   } noraise {
     _ => fail("infinite coordinate was accepted")
   }
