@@ -21,6 +21,8 @@ jobs:
         run: moon check --target all --deny-warn
       - name: Test all stable targets
         run: moon test --target all --deny-warn
+      - name: Run paired detector demo and quality gates
+        run: python3 examples/compare_demo.py
       - name: Verify independent consumer and MBMOT adapter
         working-directory: examples/consumer
         run: |

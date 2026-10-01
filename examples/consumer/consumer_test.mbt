@@ -11,6 +11,9 @@ test "independent module calls MoonDetEval public API" {
   assert_eq(report.summary().ap50(), 1.0)
   assert_eq(report.counts().evaluated_detections(), 1)
   assert_eq(report.quality_warnings().length(), 0)
+  let comparison = @moondeteval.compare_predictions(dataset, [detection], [])
+  assert_eq(comparison.metrics()[1].name(), "ap50")
+  assert_eq(comparison.metrics()[1].delta(), Some(-1.0))
 }
 
 ///|

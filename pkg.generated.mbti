@@ -6,6 +6,10 @@ import {
 }
 
 // Values
+pub fn compare_predictions(Dataset, Array[Detection], Array[Detection]) -> ComparisonReport raise EvalError
+
+pub fn compare_predictions_with_config(Dataset, Array[Detection], Array[Detection], EvalConfig) -> ComparisonReport raise EvalError
+
 pub fn evaluate(Dataset, Array[Detection]) -> EvaluationReport raise EvalError
 
 pub fn evaluate_with_config(Dataset, Array[Detection], EvalConfig) -> EvaluationReport raise EvalError
@@ -52,6 +56,14 @@ pub fn Category::new(Int, String) -> Self raise EvalError
 pub fn Category::not_equal(Self, Self) -> Bool
 pub fn Category::to_repr(Self) -> @debug.Repr
 
+pub struct ClassComparison {
+  category_id : Int
+  metrics : Array[MetricChange]
+} derive(ToJson)
+pub fn ClassComparison::category_id(Self) -> Int
+pub fn ClassComparison::metrics(Self) -> Array[MetricChange]
+pub fn ClassComparison::to_json(Self) -> Json
+
 pub struct ClassMetrics {
   category_id : Int
   metrics : Metrics
@@ -59,6 +71,20 @@ pub struct ClassMetrics {
 pub fn ClassMetrics::category_id(Self) -> Int
 pub fn ClassMetrics::metrics(Self) -> Metrics
 pub fn ClassMetrics::to_json(Self) -> Json
+
+pub struct ComparisonReport {
+  schema_version : String
+  baseline : EvaluationReport
+  candidate : EvaluationReport
+  metrics : Array[MetricChange]
+  classes : Array[ClassComparison]
+} derive(ToJson)
+pub fn ComparisonReport::baseline(Self) -> EvaluationReport
+pub fn ComparisonReport::candidate(Self) -> EvaluationReport
+pub fn ComparisonReport::classes(Self) -> Array[ClassComparison]
+pub fn ComparisonReport::metrics(Self) -> Array[MetricChange]
+pub fn ComparisonReport::to_json(Self) -> Json
+pub fn ComparisonReport::to_json_string(Self) -> String
 
 pub struct Dataset {
   images : Array[Image]
@@ -186,6 +212,19 @@ pub fn MatchDiagnostic::iou_threshold(Self) -> Double
 pub fn MatchDiagnostic::reason(Self) -> String
 pub fn MatchDiagnostic::status(Self) -> String
 pub fn MatchDiagnostic::to_json(Self) -> Json
+
+pub struct MetricChange {
+  name : String
+  baseline : Double?
+  candidate : Double?
+  delta : Double?
+}
+pub fn MetricChange::baseline(Self) -> Double?
+pub fn MetricChange::candidate(Self) -> Double?
+pub fn MetricChange::delta(Self) -> Double?
+pub fn MetricChange::name(Self) -> String
+pub fn MetricChange::to_json(Self) -> Json
+pub impl ToJson for MetricChange
 
 pub struct Metrics {
   ap : Double

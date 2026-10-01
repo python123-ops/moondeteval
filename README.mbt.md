@@ -16,13 +16,22 @@ In the default `coco_bbox` mode, COCO bbox evaluation uses `iscrowd` to determin
 moon run cli --target native -- examples/ground-truth.json examples/detections.json
 moon run cli --target native -- examples/ground-truth.json examples/detections.json --diagnostics --min-ap50 0.8
 moon run cli --target native -- examples/ground-truth.json examples/detections.json --output report.json
+python examples/compare_demo.py
 ```
 
 The command prints a JSON report with `schema_version`, `evaluator_version`, `config`, `counts`, `summary`, `classes`, `diagnostics`, and `quality_warnings`. The example's AP and AP50 are `1`, while AR@1 is `0`: the highest-scored prediction lands inside an ignored crowd box and occupies the single-detection slot. The second prediction matches the regular ground truth. `counts` includes raw input totals and `evaluated_detections`, the predictions retained after the all-area maxDets=100 cap for each image/category. A retained prediction need not be a true positive. Warnings identify out-of-image ground-truth and detection boxes by source type and record/image/category IDs. They appear even without `--diagnostics`, and never clip boxes or alter AP/AR. `--diagnostics` includes decisions for each configured IoU threshold using the all-area range and maxDets=100. Each entry has source IDs, status (`tp`, `fp`, `ignored`, or `fn`), reason, and matched IoU (zero when unmatched). FP reasons use fixed priority: `duplicate`, `wrong_class`, `localization` (same-class IoU at least 0.1), then `background`. These explanations do not affect metrics.
 
-`--min-ap50 N` accepts a finite value in `[0,1]`. A failed gate still prints the complete report and exits with code 3. Invalid options or evaluation input exit with code 2.
+For a direct two-detector comparison, run:
 
-With `--output`, the CLI writes the JSON file and prints a one-line AP/AP50/AR100 summary. It refuses to overwrite an existing path, creates an exclusive temporary file beside the target, syncs it, then renames it without replacement. A failed evaluation creates no report; a failed AP50 gate keeps the complete report. A pre-existing `.moondeteval.tmp` file is never deleted automatically. The default CLI limits are 64 MiB **per input file**, 100,000 total image/category/ground-truth/detection records, an upper bound of 100,000 diagnostic entries, and 64 MiB of serialized report text. Use `--max-input-bytes`, `--max-records`, `--max-diagnostics`, and `--max-report-bytes` with positive integers to change them. These guard against accidental oversized work; they are not a hard process-memory limit.
+```sh
+moon run cli --target native -- examples/compare-ground-truth.json examples/compare-baseline.json --compare examples/compare-candidate.json --diagnostics
+```
+
+`--compare` evaluates both prediction files against the same ground truths and configuration. The comparison JSON contains complete `baseline` and `candidate` reports, then 12 overall metric changes and 12 changes per class in stable metric order. Every `delta` is candidate minus baseline; a COCO `-1` undefined value becomes `null` in the comparison entries and its delta is `null`. The full nested reports still retain their original `-1` representation. In the included synthetic example, baseline AP50 is `1`, candidate AP50 is `0.25`, and the delta is `-0.75`; at IoU 0.5 candidate detection IDs 0, 1, and 3 are `wrong_class`, `localization`, and `duplicate`. `python examples/compare_demo.py` checks these values and prints a short readable trace. The diagnostic reason labels are MoonDetEval explanations, not official COCO categories.
+
+`--min-ap50 N` accepts a finite value in `[0,1]` and checks the candidate in comparison mode. `--fail-on-warning` fails when any evaluated input has an out-of-image box. Either failed gate keeps the complete report and exits with code 3; invalid options or evaluation input exit with code 2. When both gates fail, the AP50 failure is reported first.
+
+With `--output`, the CLI writes the JSON file and prints a one-line summary. It refuses to overwrite an existing path, creates an exclusive temporary file beside the target, syncs it, then renames it without replacement. A failed evaluation creates no report; a failed gate keeps the complete report. A pre-existing `.moondeteval.tmp` file is never deleted automatically. The default CLI limits are 64 MiB **per input file**, 100,000 total image/category/ground-truth/detection records across both models, an upper bound of 100,000 diagnostic entries across both reports, and 64 MiB of serialized report text. Use `--max-input-bytes`, `--max-records`, `--max-diagnostics`, and `--max-report-bytes` with positive integers to change them. These guard against accidental oversized work; they are not a hard process-memory limit.
 
 ## Library use
 
@@ -44,6 +53,14 @@ let config = @moondeteval.EvalConfig::new([0.5, 0.75], include_diagnostics=true)
 
 ///|
 let custom = @moondeteval.evaluate_with_config(dataset, predictions, config)
+
+///|
+let comparison = @moondeteval.compare_predictions(
+  dataset, predictions, other_predictions,
+)
+
+///|
+let ap50_change = comparison.metrics()[1].delta()
 
 ///|
 let retained = report.counts().evaluated_detections()
@@ -68,6 +85,7 @@ The [independent consumer](https://github.com/python123-ops/moondeteval/blob/mai
 moon fmt --check
 moon check --target all --deny-warn
 moon test --target all --deny-warn
+python examples/compare_demo.py
 python -m pip install numpy==1.26.4 pycocotools==2.0.7
 python reference_compare.py
 ```

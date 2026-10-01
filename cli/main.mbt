@@ -12,12 +12,14 @@ async fn main {
   let arguments = @env.args()
   if arguments.length() < 3 {
     fail_command(
-      "usage: moondeteval <ground-truth.json> <detections.json> [--diagnostics] [--min-ap50 N] [--output PATH] [--max-input-bytes N] [--max-records N] [--max-diagnostics N] [--max-report-bytes N]",
+      "usage: moondeteval <ground-truth.json> <detections.json> [--compare OTHER.json] [--diagnostics] [--min-ap50 N] [--fail-on-warning] [--output PATH] [--max-input-bytes N] [--max-records N] [--max-diagnostics N] [--max-report-bytes N]",
       2,
     )
     return
   }
   let mut include_diagnostics = false
+  let mut fail_on_warning = false
+  let mut comparison_path : String? = None
   let mut minimum_ap50 : Double? = None
   let mut output_path : String? = None
   let mut max_input_bytes = 67108864
@@ -34,6 +36,24 @@ async fn main {
         }
         include_diagnostics = true
         index += 1
+      }
+      "--fail-on-warning" => {
+        if fail_on_warning {
+          fail_command("--fail-on-warning may only be given once", 2)
+          return
+        }
+        fail_on_warning = true
+        index += 1
+      }
+      "--compare" => {
+        if comparison_path is Some(_) ||
+          index + 1 >= arguments.length() ||
+          arguments[index + 1].is_empty() {
+          fail_command("--compare requires one nonempty path", 2)
+          return
+        }
+        comparison_path = Some(arguments[index + 1])
+        index += 2
       }
       "--min-ap50" => {
         if minimum_ap50 is Some(_) || index + 1 >= arguments.length() {
@@ -105,6 +125,10 @@ async fn main {
         fail_command("output path must differ from both input paths", 2)
         return
       }
+      if comparison_path == Some(path) {
+        fail_command("output path must differ from comparison input", 2)
+        return
+      }
       let already_exists = @fs.exists(path) catch {
         error => {
           fail_command("cannot inspect output " + path + ": \{error}", 2)
@@ -119,8 +143,12 @@ async fn main {
     None => ()
   }
   let sources : Array[String] = []
-  for input_index in 1..<=2 {
-    let path = arguments[input_index]
+  let input_paths = [arguments[1], arguments[2]]
+  match comparison_path {
+    Some(path) => input_paths.push(path)
+    None => ()
+  }
+  for path in input_paths {
     let size = @fs.file_size(path) catch {
       error => {
         fail_command("cannot inspect input " + path + ": \{error}", 2)
@@ -165,10 +193,29 @@ async fn main {
       return
     }
   }
+  let comparison_predictions = if sources.length() == 3 {
+    let parsed = @moondeteval.parse_coco_detections(sources[2]) catch {
+      error => {
+        fail_command(
+          "comparison detections " + input_paths[2] + ": " + error.message(),
+          2,
+        )
+        return
+      }
+    }
+    Some(parsed)
+  } else {
+    None
+  }
+  let comparison_records = match comparison_predictions {
+    Some(other) => other.length()
+    None => 0
+  }
   let records = dataset.images().length() +
     dataset.categories().length() +
     dataset.truths().length() +
-    predictions.length()
+    predictions.length() +
+    comparison_records
   if records > max_records {
     fail_command(
       "input has \{records} records, exceeding --max-records \{max_records}",
@@ -176,20 +223,60 @@ async fn main {
     )
     return
   }
+  let comparison_diagnostic_records = if comparison_predictions is Some(_) {
+    comparison_records + dataset.truths().length()
+  } else {
+    0
+  }
+  let diagnostic_records = predictions.length() +
+    dataset.truths().length() +
+    comparison_diagnostic_records
   if include_diagnostics &&
-    (predictions.length() + dataset.truths().length()).to_int64() * 10L >
-    max_diagnostics.to_int64() {
+    diagnostic_records.to_int64() * 10L > max_diagnostics.to_int64() {
     fail_command(
       "diagnostic upper bound exceeds --max-diagnostics \{max_diagnostics}; raise the limit explicitly if intended",
       2,
     )
     return
   }
-  let report = try {
-    if include_diagnostics {
-      @moondeteval.evaluate_with_diagnostics(dataset, predictions)
-    } else {
-      @moondeteval.evaluate(dataset, predictions)
+  let (report_json, actual_ap50, warning_count, summary_line) = try {
+    match comparison_predictions {
+      Some(other) => {
+        let config = @moondeteval.EvalConfig::new(
+          @moondeteval.EvalConfig::coco().iou_thresholds(),
+          include_diagnostics~,
+        )
+        let comparison = @moondeteval.compare_predictions_with_config(
+          dataset, predictions, other, config,
+        )
+        let baseline = comparison.baseline()
+        let candidate = comparison.candidate()
+        let mut warning_count = baseline.quality_warnings().length()
+        for warning in candidate.quality_warnings() {
+          if warning.source() != "ground_truth" {
+            warning_count += 1
+          }
+        }
+        (
+          comparison.to_json_string(),
+          candidate.summary().ap50(),
+          warning_count,
+          "baseline AP50=\{baseline.summary().ap50()} candidate AP50=\{candidate.summary().ap50()}\n",
+        )
+      }
+      None => {
+        let report = if include_diagnostics {
+          @moondeteval.evaluate_with_diagnostics(dataset, predictions)
+        } else {
+          @moondeteval.evaluate(dataset, predictions)
+        }
+        (
+          report.to_json_string(),
+          report.summary().ap50(),
+          report.quality_warnings().length(),
+          "AP=\{report.summary().ap()} AP50=\{report.summary().ap50()} AR100=\{report.summary().ar100()}\n",
+        )
+      }
     }
   } catch {
     error => {
@@ -197,7 +284,7 @@ async fn main {
       return
     }
   }
-  let output = report.to_json_string() + "\n"
+  let output = report_json + "\n"
   if output.length() > max_report_bytes {
     fail_command("report exceeds --max-report-bytes \{max_report_bytes}", 2)
     return
@@ -229,22 +316,25 @@ async fn main {
           return
         }
       }
-      @stdio.stdout.write(
-        "AP=\{report.summary().ap()} AP50=\{report.summary().ap50()} AR100=\{report.summary().ar100()}\n",
-      )
+      @stdio.stdout.write(summary_line)
     }
     None => @stdio.stdout.write(output)
   }
   match minimum_ap50 {
-    Some(minimum) => {
-      let actual = report.summary().ap50()
-      if actual < 0.0 || actual < minimum {
+    Some(minimum) =>
+      if actual_ap50 < 0.0 || actual_ap50 < minimum {
         fail_command(
-          "AP50 gate failed: actual=\{actual}, minimum=\{minimum}",
+          "AP50 gate failed: actual=\{actual_ap50}, minimum=\{minimum}",
           3,
         )
+        return
       }
-    }
     None => ()
+  }
+  if fail_on_warning && warning_count > 0 {
+    fail_command(
+      "quality gate failed: \{warning_count} out-of-image warning(s)",
+      3,
+    )
   }
 }
