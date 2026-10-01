@@ -204,6 +204,7 @@ pub fn EvaluationReport::diagnostics(
 pub struct EvalConfig {
   iou_thresholds : Array[Double]
   include_diagnostics : Bool
+  ignore_policy : String
 } derive(ToJson)
 
 ///|
@@ -213,6 +214,7 @@ pub extend EvalConfig with ToJson::{to_json}
 pub fn EvalConfig::new(
   iou_thresholds : Array[Double],
   include_diagnostics? : Bool = false,
+  ignore_policy? : String = "coco_bbox",
 ) -> EvalConfig raise EvalError {
   if iou_thresholds.is_empty() || iou_thresholds.length() > 100 {
     raise InvalidConfig("IoU thresholds must contain 1 to 100 values")
@@ -226,7 +228,10 @@ pub fn EvalConfig::new(
     }
     previous = threshold
   }
-  { iou_thresholds: iou_thresholds.copy(), include_diagnostics, }
+  if ignore_policy != "coco_bbox" && ignore_policy != "respect_explicit" {
+    raise InvalidConfig("ignore_policy must be coco_bbox or respect_explicit")
+  }
+  { iou_thresholds: iou_thresholds.copy(), include_diagnostics, ignore_policy, }
 }
 
 ///|
@@ -236,6 +241,7 @@ pub fn EvalConfig::coco() -> EvalConfig {
       0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.8999999999999999, 0.95,
     ],
     include_diagnostics: false,
+    ignore_policy: "coco_bbox",
   }
 }
 
@@ -247,6 +253,11 @@ pub fn EvalConfig::iou_thresholds(self : EvalConfig) -> Array[Double] {
 ///|
 pub fn EvalConfig::include_diagnostics(self : EvalConfig) -> Bool {
   self.include_diagnostics
+}
+
+///|
+pub fn EvalConfig::ignore_policy(self : EvalConfig) -> String {
+  self.ignore_policy
 }
 
 ///|
@@ -293,6 +304,18 @@ fn in_area(area : Double, lower : Double, upper : Double) -> Bool {
 }
 
 ///|
+fn truth_ignored(
+  truth : GroundTruth,
+  lower : Double,
+  upper : Double,
+  respect_explicit_ignore : Bool,
+) -> Bool {
+  truth.iscrowd ||
+  (respect_explicit_ignore && truth.ignore) ||
+  !in_area(truth.area, lower, upper)
+}
+
+///|
 fn ranked_before(left : RankedDetection, right : RankedDetection) -> Int {
   if left.detection.score > right.detection.score {
     -1
@@ -325,6 +348,7 @@ fn classify_false_positive(
   used : Array[Bool],
   ignored : Array[Bool],
   threshold : Double,
+  respect_explicit_ignore : Bool,
 ) -> String {
   for index in 0..<truths.length() {
     let truth = truths[index].truth
@@ -337,8 +361,8 @@ fn classify_false_positive(
   for truth in dataset.truths {
     if truth.image_id == image_id &&
       truth.category_id != category_id &&
-      !truth.ignore &&
       !truth.iscrowd &&
+      (!respect_explicit_ignore || !truth.ignore) &&
       overlap(detection, truth.bbox, false) >= threshold {
       return "wrong_class"
     }
@@ -362,10 +386,21 @@ fn evaluate_curve(
   upper : Double,
   max_dets : Int,
   trace : Array[MatchDiagnostic]?,
+  respect_explicit_ignore : Bool,
 ) -> CurveValue {
   let records : Array[MatchRecord] = []
   let mut positives = 0
-  for image in dataset.images {
+  let images = dataset.images.copy()
+  images.sort_by(fn(left, right) {
+    if left.id < right.id {
+      -1
+    } else if left.id > right.id {
+      1
+    } else {
+      0
+    }
+  })
+  for image in images {
     let truths : Array[RankedTruth] = []
     let candidates : Array[RankedDetection] = []
     for order, truth in dataset.truths {
@@ -380,12 +415,18 @@ fn evaluate_curve(
       }
     }
     truths.sort_by(fn(left, right) {
-      let left_ignored = left.truth.ignore ||
-        left.truth.iscrowd ||
-        !in_area(left.truth.area, lower, upper)
-      let right_ignored = right.truth.ignore ||
-        right.truth.iscrowd ||
-        !in_area(right.truth.area, lower, upper)
+      let left_ignored = truth_ignored(
+        left.truth,
+        lower,
+        upper,
+        respect_explicit_ignore,
+      )
+      let right_ignored = truth_ignored(
+        right.truth,
+        lower,
+        upper,
+        respect_explicit_ignore,
+      )
       if left_ignored == right_ignored {
         left.order - right.order
       } else if left_ignored {
@@ -397,9 +438,7 @@ fn evaluate_curve(
     candidates.sort_by(ranked_before)
     let used = Array::make(truths.length(), false)
     let ignored = Array::makei(truths.length(), fn(index) {
-      truths[index].truth.ignore ||
-      truths[index].truth.iscrowd ||
-      !in_area(truths[index].truth.area, lower, upper)
+      truth_ignored(truths[index].truth, lower, upper, respect_explicit_ignore)
     })
     for flag in ignored {
       if !flag {
@@ -449,7 +488,7 @@ fn evaluate_curve(
             let truth = truths[best].truth
             if truth.iscrowd {
               "crowd"
-            } else if truth.ignore {
+            } else if respect_explicit_ignore && truth.ignore {
               "ground_truth_ignore"
             } else if !in_area(truth.area, lower, upper) {
               "ground_truth_area"
@@ -468,6 +507,7 @@ fn evaluate_curve(
               used,
               ignored,
               threshold,
+              respect_explicit_ignore,
             )
           }
           entries.push({
@@ -495,7 +535,7 @@ fn evaluate_curve(
       }
       records.push({
         score: candidate.detection.score,
-        order: candidate.order,
+        order: records.length(),
         matched: best >= 0,
         ignored: match_ignored,
       })
@@ -583,6 +623,7 @@ fn metrics_for_category(
   category_id : Int,
   thresholds : Array[Double],
   diagnostics : Array[MatchDiagnostic]?,
+  respect_explicit_ignore : Bool,
 ) -> Metrics {
   let all_ap : Array[Double] = []
   let all_ar1 : Array[Double] = []
@@ -601,6 +642,7 @@ fn metrics_for_category(
   for threshold in thresholds {
     let all = evaluate_curve(
       dataset, detections, category_id, threshold, 0.0, 1.0e10, 100, diagnostics,
+      respect_explicit_ignore,
     )
     all_ap.push(all.ap)
     all_ar100.push(all.ar)
@@ -614,6 +656,7 @@ fn metrics_for_category(
         1.0e10,
         1,
         None,
+        respect_explicit_ignore,
       ).ar,
     )
     all_ar10.push(
@@ -626,6 +669,7 @@ fn metrics_for_category(
         1.0e10,
         10,
         None,
+        respect_explicit_ignore,
       ).ar,
     )
     let small = evaluate_curve(
@@ -637,6 +681,7 @@ fn metrics_for_category(
       1024.0,
       100,
       None,
+      respect_explicit_ignore,
     )
     let medium = evaluate_curve(
       dataset,
@@ -647,6 +692,7 @@ fn metrics_for_category(
       9216.0,
       100,
       None,
+      respect_explicit_ignore,
     )
     let large = evaluate_curve(
       dataset,
@@ -657,6 +703,7 @@ fn metrics_for_category(
       1.0e10,
       100,
       None,
+      respect_explicit_ignore,
     )
     small_ap.push(small.ap)
     medium_ap.push(medium.ap)
@@ -683,6 +730,7 @@ fn metrics_for_category(
         1.0e10,
         100,
         None,
+        respect_explicit_ignore,
       ).ap
   }
   if !saw_ap75 {
@@ -695,6 +743,7 @@ fn metrics_for_category(
         1.0e10,
         100,
         None,
+        respect_explicit_ignore,
       ).ap
   }
   {
@@ -732,6 +781,7 @@ pub fn evaluate_with_diagnostics(
   evaluate_internal(dataset, predictions, {
     iou_thresholds: default.iou_thresholds,
     include_diagnostics: true,
+    ignore_policy: default.ignore_policy,
   })
 }
 
@@ -799,6 +849,7 @@ fn evaluate_internal(
       } else {
         None
       },
+      config.ignore_policy == "respect_explicit",
     )
     classes.push({ category_id: category.id, metrics, })
     ap.push(metrics.ap)

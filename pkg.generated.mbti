@@ -90,11 +90,13 @@ pub fn Detection::to_repr(Self) -> @debug.Repr
 pub struct EvalConfig {
   iou_thresholds : Array[Double]
   include_diagnostics : Bool
+  ignore_policy : String
 } derive(ToJson)
 pub fn EvalConfig::coco() -> Self
+pub fn EvalConfig::ignore_policy(Self) -> String
 pub fn EvalConfig::include_diagnostics(Self) -> Bool
 pub fn EvalConfig::iou_thresholds(Self) -> Array[Double]
-pub fn EvalConfig::new(Array[Double], include_diagnostics? : Bool) -> Self raise EvalError
+pub fn EvalConfig::new(Array[Double], include_diagnostics? : Bool, ignore_policy? : String) -> Self raise EvalError
 pub fn EvalConfig::to_json(Self) -> Json
 
 pub struct EvaluationReport {

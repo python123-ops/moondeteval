@@ -28,3 +28,18 @@ test "COCO JSON accepts empty predictions and locates malformed boxes" {
     _ => fail("short bbox accepted")
   }
 }
+
+///|
+test "COCO JSON reports the record index for invalid field types" {
+  try
+    @moondeteval.parse_coco_detections(
+      "[{\"image_id\":1,\"category_id\":1,\"bbox\":[0,0,1,1],\"score\":0.5},{\"image_id\":\"bad\",\"category_id\":1,\"bbox\":[0,0,1,1],\"score\":0.5}]",
+    )
+  catch {
+    @moondeteval.InvalidInput(message) =>
+      assert_true(message.contains("detections[1]"))
+    _ => fail("wrong error")
+  } noraise {
+    _ => fail("invalid image id accepted")
+  }
+}

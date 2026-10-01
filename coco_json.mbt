@@ -24,9 +24,9 @@ priv struct CocoAnnotation {
 
 ///|
 priv struct CocoGroundTruthFile {
-  images : Array[CocoImage]
-  categories : Array[CocoCategory]
-  annotations : Array[CocoAnnotation]
+  images : Array[Json]
+  categories : Array[Json]
+  annotations : Array[Json]
 } derive(FromJson)
 
 ///|
@@ -77,20 +77,30 @@ pub fn parse_coco_dataset(source : String) -> Dataset raise EvalError {
   let images : Array[Image] = []
   let categories : Array[Category] = []
   let truths : Array[GroundTruth] = []
-  for index, image in raw.images {
+  for index, entry in raw.images {
+    let image : CocoImage = @json.from_json(entry) catch {
+      _ => raise InvalidInput("images[\{index}] has invalid or missing fields")
+    }
     let item = Image::new(image.id, image.width, image.height) catch {
       error => raise InvalidInput("images[\{index}]: " + error.message())
     }
     images.push(item)
   }
-  for index, category in raw.categories {
+  for index, entry in raw.categories {
+    let category : CocoCategory = @json.from_json(entry) catch {
+      _ =>
+        raise InvalidInput("categories[\{index}] has invalid or missing fields")
+    }
     let item = Category::new(category.id, category.name) catch {
       error => raise InvalidInput("categories[\{index}]: " + error.message())
     }
     categories.push(item)
   }
-  for index, annotation in raw.annotations {
+  for index, entry in raw.annotations {
     let location = "annotations[\{index}]"
+    let annotation : CocoAnnotation = @json.from_json(entry) catch {
+      _ => raise InvalidInput(location + " has invalid or missing fields")
+    }
     let bbox = parse_box(annotation.bbox, location)
     let item = GroundTruth::new(
       annotation.id,
@@ -116,15 +126,18 @@ pub fn parse_coco_detections(
   let json = @json.parse(source) catch {
     _ => raise InvalidInput("detections are not valid JSON")
   }
-  let raw : Array[CocoPrediction] = @json.from_json(json) catch {
+  let raw : Array[Json] = @json.from_json(json) catch {
     _ =>
       raise InvalidInput(
         "detections must be an array of image_id, category_id, bbox, and score records",
       )
   }
   let predictions : Array[Detection] = []
-  for index, prediction in raw {
+  for index, entry in raw {
     let location = "detections[\{index}]"
+    let prediction : CocoPrediction = @json.from_json(entry) catch {
+      _ => raise InvalidInput(location + " has invalid or missing fields")
+    }
     let bbox = parse_box(prediction.bbox, location)
     let item = Detection::new(
       index,

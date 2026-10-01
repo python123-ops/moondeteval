@@ -230,3 +230,58 @@ test "false-positive labels follow duplicate, wrong-class, localization, backgro
   assert_eq(trace[3].reason(), "localization")
   assert_eq(trace[5].reason(), "background")
 }
+
+///|
+test "COCO bbox ignores only crowd while explicit mode honors source ignore" {
+  let box = @moondeteval.Box::from_xywh(0.0, 0.0, 10.0, 10.0)
+  let dataset = @moondeteval.Dataset::new(
+    [@moondeteval.Image::new(1, 20, 20)],
+    [@moondeteval.Category::new(1, "box")],
+    [@moondeteval.GroundTruth::new(1, 1, 1, box, area=100.0, ignore=true)],
+  )
+  let prediction = @moondeteval.Detection::new(1, 1, 1, box, 0.9)
+  let compatible = @moondeteval.evaluate_with_diagnostics(dataset, [prediction])
+  assert_eq(compatible.config().ignore_policy(), "coco_bbox")
+  assert_eq(compatible.summary().ap50(), 1.0)
+  assert_eq(compatible.diagnostics()[0].status(), "tp")
+  let explicit = @moondeteval.EvalConfig::new(
+    [0.5],
+    include_diagnostics=true,
+    ignore_policy="respect_explicit",
+  )
+  let respected = @moondeteval.evaluate_with_config(
+    dataset,
+    [prediction],
+    explicit,
+  )
+  assert_eq(respected.summary().ap50(), -1.0)
+  assert_eq(respected.diagnostics()[0].status(), "ignored")
+  assert_eq(respected.diagnostics()[0].reason(), "ground_truth_ignore")
+  try @moondeteval.EvalConfig::new([0.5], ignore_policy="unknown") catch {
+    @moondeteval.InvalidConfig(_) => ()
+    _ => fail("wrong error")
+  } noraise {
+    _ => fail("unknown policy accepted")
+  }
+}
+
+///|
+test "equal scores across images accumulate in sorted image order" {
+  let box = @moondeteval.Box::from_xywh(0.0, 0.0, 10.0, 10.0)
+  let far = @moondeteval.Box::from_xywh(50.0, 50.0, 10.0, 10.0)
+  let dataset = @moondeteval.Dataset::new(
+    [@moondeteval.Image::new(2, 100, 100), @moondeteval.Image::new(1, 100, 100)],
+    [@moondeteval.Category::new(1, "box")],
+    [
+      @moondeteval.GroundTruth::new(1, 1, 1, box, area=100.0),
+      @moondeteval.GroundTruth::new(2, 2, 1, box, area=100.0),
+    ],
+  )
+  let predictions = [
+    @moondeteval.Detection::new(10, 2, 1, box, 0.9),
+    @moondeteval.Detection::new(11, 1, 1, far, 0.9),
+    @moondeteval.Detection::new(12, 1, 1, box, 0.8),
+  ]
+  let ap = @moondeteval.evaluate(dataset, predictions).summary().ap()
+  assert_true(ap > 0.666666 && ap < 0.666667)
+}
