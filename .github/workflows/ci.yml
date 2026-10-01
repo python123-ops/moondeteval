@@ -21,6 +21,12 @@ jobs:
         run: moon check --target all --deny-warn
       - name: Test all stable targets
         run: moon test --target all --deny-warn
+      - name: Verify independent consumer and MBMOT adapter
+        working-directory: examples/consumer
+        run: |
+          moon fmt --check
+          moon check --target all --deny-warn
+          moon test --target all --deny-warn
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'

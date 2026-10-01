@@ -101,14 +101,20 @@ pub fn EvalConfig::to_json(Self) -> Json
 
 pub struct EvaluationReport {
   schema_version : String
+  evaluator_version : String
   config : EvalConfig
+  counts : InputCounts
   summary : Metrics
   classes : Array[ClassMetrics]
   diagnostics : Array[MatchDiagnostic]
+  quality_warnings : Array[QualityWarning]
 } derive(ToJson)
 pub fn EvaluationReport::classes(Self) -> Array[ClassMetrics]
 pub fn EvaluationReport::config(Self) -> EvalConfig
+pub fn EvaluationReport::counts(Self) -> InputCounts
 pub fn EvaluationReport::diagnostics(Self) -> Array[MatchDiagnostic]
+pub fn EvaluationReport::evaluator_version(Self) -> String
+pub fn EvaluationReport::quality_warnings(Self) -> Array[QualityWarning]
 pub fn EvaluationReport::summary(Self) -> Metrics
 pub fn EvaluationReport::to_json(Self) -> Json
 pub fn EvaluationReport::to_json_string(Self) -> String
@@ -146,6 +152,20 @@ pub fn Image::new(Int, Int, Int) -> Self raise EvalError
 pub fn Image::not_equal(Self, Self) -> Bool
 pub fn Image::to_repr(Self) -> @debug.Repr
 pub fn Image::width(Self) -> Int
+
+pub struct InputCounts {
+  images : Int
+  categories : Int
+  ground_truths : Int
+  detections : Int
+  evaluated_detections : Int
+} derive(ToJson)
+pub fn InputCounts::categories(Self) -> Int
+pub fn InputCounts::detections(Self) -> Int
+pub fn InputCounts::evaluated_detections(Self) -> Int
+pub fn InputCounts::ground_truths(Self) -> Int
+pub fn InputCounts::images(Self) -> Int
+pub fn InputCounts::to_json(Self) -> Json
 
 pub struct MatchDiagnostic {
   iou_threshold : Double
@@ -195,6 +215,20 @@ pub fn Metrics::ar_medium(Self) -> Double
 pub fn Metrics::ar_small(Self) -> Double
 pub fn Metrics::to_json(Self) -> Json
 pub fn Metrics::to_repr(Self) -> @debug.Repr
+
+pub struct QualityWarning {
+  source : String
+  record_id : Int
+  image_id : Int
+  category_id : Int
+  kind : String
+} derive(ToJson)
+pub fn QualityWarning::category_id(Self) -> Int
+pub fn QualityWarning::image_id(Self) -> Int
+pub fn QualityWarning::kind(Self) -> String
+pub fn QualityWarning::record_id(Self) -> Int
+pub fn QualityWarning::source(Self) -> String
+pub fn QualityWarning::to_json(Self) -> Json
 
 // Type aliases
 

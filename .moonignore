@@ -1,0 +1,6 @@
+# Keep the independent workspace example in Git but outside the published library.
+/examples/consumer/
+
+# Generated outputs can also exist below an example directory.
+**/_build/
+**/.mooncakes/

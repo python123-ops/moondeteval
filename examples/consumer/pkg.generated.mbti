@@ -1,0 +1,18 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "local/consumer"
+
+import {
+  "python123-ops/mbmot",
+  "python123-ops/moondeteval",
+}
+
+// Values
+pub fn adapt_mbmot_frame(Int, Int, Array[@mbmot.Detection]) -> Array[@moondeteval.Detection] raise @moondeteval.EvalError
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits

@@ -15,6 +15,60 @@ test "perfect detection gives AP and AR of one" {
 }
 
 ///|
+test "report counts inputs and retained detections per image and category" {
+  let box = @moondeteval.Box::from_xywh(0.0, 0.0, 10.0, 10.0)
+  let dataset = @moondeteval.Dataset::new(
+    [@moondeteval.Image::new(1, 20, 20), @moondeteval.Image::new(2, 20, 20)],
+    [@moondeteval.Category::new(1, "a"), @moondeteval.Category::new(2, "b")],
+    [@moondeteval.GroundTruth::new(1, 1, 1, box, area=100.0)],
+  )
+  let detections : Array[@moondeteval.Detection] = []
+  for id in 0..<105 {
+    detections.push(@moondeteval.Detection::new(id, 1, 1, box, 0.5))
+  }
+  detections.push(@moondeteval.Detection::new(105, 1, 2, box, 0.5))
+  detections.push(@moondeteval.Detection::new(106, 2, 1, box, 0.5))
+  let report = @moondeteval.evaluate(dataset, detections)
+  let counts = report.counts()
+  assert_eq(counts.images(), 2)
+  assert_eq(counts.categories(), 2)
+  assert_eq(counts.ground_truths(), 1)
+  assert_eq(counts.detections(), 107)
+  assert_eq(counts.evaluated_detections(), 102)
+  assert_eq(report.evaluator_version(), "0.1.0")
+  assert_true(report.to_json_string().contains("\"evaluated_detections\":102"))
+}
+
+///|
+test "out-of-image quality warnings preserve original-box metrics" {
+  let outside = @moondeteval.Box::from_xywh(-5.0, 0.0, 20.0, 10.0)
+  let inside = @moondeteval.Box::from_xywh(0.0, 0.0, 8.0, 10.0)
+  let dataset = @moondeteval.Dataset::new(
+    [@moondeteval.Image::new(1, 15, 10)],
+    [@moondeteval.Category::new(1, "object")],
+    [@moondeteval.GroundTruth::new(7, 1, 1, outside, area=200.0)],
+  )
+  let exact = @moondeteval.evaluate(dataset, [
+    @moondeteval.Detection::new(8, 1, 1, outside, 0.9),
+  ])
+  assert_eq(exact.summary().ap50(), 1.0)
+  let warnings = exact.quality_warnings()
+  assert_eq(warnings.length(), 2)
+  assert_eq(warnings[0].source(), "ground_truth")
+  assert_eq(warnings[0].record_id(), 7)
+  assert_eq(warnings[0].kind(), "outside_image")
+  assert_eq(warnings[1].source(), "detection")
+  assert_eq(warnings[1].record_id(), 8)
+  warnings.clear()
+  assert_eq(exact.quality_warnings().length(), 2)
+  let clipped = @moondeteval.evaluate(dataset, [
+    @moondeteval.Detection::new(9, 1, 1, inside, 0.9),
+  ])
+  assert_true(clipped.summary().ap50() < exact.summary().ap50())
+  assert_eq(clipped.quality_warnings().length(), 1)
+}
+
+///|
 test "empty predictions have zero AP with an eligible ground truth" {
   let box = @moondeteval.Box::from_xywh(0.0, 0.0, 20.0, 20.0)
   let dataset = @moondeteval.Dataset::new(

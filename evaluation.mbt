@@ -103,11 +103,90 @@ pub fn ClassMetrics::metrics(self : ClassMetrics) -> Metrics {
 ///|
 pub struct EvaluationReport {
   schema_version : String
+  evaluator_version : String
   config : EvalConfig
+  counts : InputCounts
   summary : Metrics
   classes : Array[ClassMetrics]
   diagnostics : Array[MatchDiagnostic]
+  quality_warnings : Array[QualityWarning]
 } derive(ToJson)
+
+///|
+/// Input sizes and detections retained by the all-area maxDets=100 evaluation.
+pub struct InputCounts {
+  images : Int
+  categories : Int
+  ground_truths : Int
+  detections : Int
+  evaluated_detections : Int
+} derive(ToJson)
+
+///|
+pub extend InputCounts with ToJson::{to_json}
+
+///|
+pub fn InputCounts::images(self : InputCounts) -> Int {
+  self.images
+}
+
+///|
+pub fn InputCounts::categories(self : InputCounts) -> Int {
+  self.categories
+}
+
+///|
+pub fn InputCounts::ground_truths(self : InputCounts) -> Int {
+  self.ground_truths
+}
+
+///|
+pub fn InputCounts::detections(self : InputCounts) -> Int {
+  self.detections
+}
+
+///|
+pub fn InputCounts::evaluated_detections(self : InputCounts) -> Int {
+  self.evaluated_detections
+}
+
+///|
+/// A nonfatal spatial input warning; scoring uses the original box unchanged.
+pub struct QualityWarning {
+  source : String
+  record_id : Int
+  image_id : Int
+  category_id : Int
+  kind : String
+} derive(ToJson)
+
+///|
+pub extend QualityWarning with ToJson::{to_json}
+
+///|
+pub fn QualityWarning::source(self : QualityWarning) -> String {
+  self.source
+}
+
+///|
+pub fn QualityWarning::record_id(self : QualityWarning) -> Int {
+  self.record_id
+}
+
+///|
+pub fn QualityWarning::image_id(self : QualityWarning) -> Int {
+  self.image_id
+}
+
+///|
+pub fn QualityWarning::category_id(self : QualityWarning) -> Int {
+  self.category_id
+}
+
+///|
+pub fn QualityWarning::kind(self : QualityWarning) -> String {
+  self.kind
+}
 
 ///|
 pub extend EvaluationReport with ToJson::{to_json}
@@ -125,6 +204,23 @@ pub fn EvaluationReport::summary(self : EvaluationReport) -> Metrics {
 ///|
 pub fn EvaluationReport::config(self : EvaluationReport) -> EvalConfig {
   self.config
+}
+
+///|
+pub fn EvaluationReport::counts(self : EvaluationReport) -> InputCounts {
+  self.counts
+}
+
+///|
+pub fn EvaluationReport::evaluator_version(self : EvaluationReport) -> String {
+  self.evaluator_version
+}
+
+///|
+pub fn EvaluationReport::quality_warnings(
+  self : EvaluationReport,
+) -> Array[QualityWarning] {
+  self.quality_warnings.copy()
 }
 
 ///|
@@ -802,15 +898,35 @@ fn evaluate_internal(
   config : EvalConfig,
 ) -> EvaluationReport raise EvalError {
   let image_ids : Map[Int, Bool] = Map([])
+  let images_by_id : Map[Int, Image] = Map([])
   let category_ids : Map[Int, Bool] = Map([])
   let detection_ids : Map[Int, Bool] = Map([])
   for image in dataset.images {
     image_ids[image.id] = true
+    images_by_id[image.id] = image
   }
   for category in dataset.categories {
     category_ids[category.id] = true
   }
   let detections : Array[RankedDetection] = []
+  let quality_warnings : Array[QualityWarning] = []
+  let per_image_category : Map[String, Int] = Map([])
+  let mut evaluated_detections = 0
+  for truth in dataset.truths {
+    match images_by_id.get(truth.image_id) {
+      Some(image) =>
+        if box_outside_image(truth.bbox, image) {
+          quality_warnings.push({
+            source: "ground_truth",
+            record_id: truth.id,
+            image_id: truth.image_id,
+            category_id: truth.category_id,
+            kind: "outside_image",
+          })
+        }
+      None => ()
+    }
+  }
   for index, prediction in predictions {
     if detection_ids.contains(prediction.id) {
       raise InvalidInput("duplicate detection id \{prediction.id}")
@@ -823,6 +939,28 @@ fn evaluate_internal(
     }
     detection_ids[prediction.id] = true
     detections.push({ detection: prediction, order: index, })
+    let group = "\{prediction.image_id}:\{prediction.category_id}"
+    let count = match per_image_category.get(group) {
+      Some(value) => value
+      None => 0
+    }
+    per_image_category[group] = count + 1
+    if count < 100 {
+      evaluated_detections += 1
+    }
+    match images_by_id.get(prediction.image_id) {
+      Some(image) =>
+        if box_outside_image(prediction.bbox, image) {
+          quality_warnings.push({
+            source: "detection",
+            record_id: prediction.id,
+            image_id: prediction.image_id,
+            category_id: prediction.category_id,
+            kind: "outside_image",
+          })
+        }
+      None => ()
+    }
   }
   let classes : Array[ClassMetrics] = []
   let diagnostics : Array[MatchDiagnostic] = []
@@ -867,7 +1005,15 @@ fn evaluate_internal(
   }
   {
     schema_version: "0.1.0",
+    evaluator_version: "0.1.0",
     config,
+    counts: {
+      images: dataset.images.length(),
+      categories: dataset.categories.length(),
+      ground_truths: dataset.truths.length(),
+      detections: predictions.length(),
+      evaluated_detections,
+    },
     summary: {
       ap: average(ap),
       ap50: average(ap50),
@@ -884,5 +1030,14 @@ fn evaluate_internal(
     },
     classes,
     diagnostics,
+    quality_warnings,
   }
+}
+
+///|
+fn box_outside_image(box : Box, image : Image) -> Bool {
+  box.x1 < 0.0 ||
+  box.y1 < 0.0 ||
+  box.x2 > image.width.to_double() ||
+  box.y2 > image.height.to_double()
 }
