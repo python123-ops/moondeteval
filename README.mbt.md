@@ -6,6 +6,8 @@ MoonDetEval is a MoonBit library for detector-independent bounding-box evaluatio
 
 The repository currently provides a validated continuous-coordinate box type, COCO-style `xywh` conversion, and ordinary box IoU. Detection matching, AP/AR, COCO JSON input, diagnostics, and a CLI are planned work; no detection metric is claimed yet.
 
+The ordered development and acceptance checklist is in [ROADMAP.md](ROADMAP.md).
+
 ## Development
 
 ```sh
