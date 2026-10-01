@@ -22,6 +22,8 @@ pub fn parse_coco_detections(String) -> Array[Detection] raise EvalError
 
 pub fn parse_yolo_detections(String, Dataset, Int, Array[Int], first_detection_id? : Int) -> Array[Detection] raise EvalError
 
+pub fn parse_yolo_manifest(String, Dataset) -> YoloManifest raise EvalError
+
 // Errors
 pub(all) suberror EvalError {
   InvalidBox(String)
@@ -270,6 +272,20 @@ pub fn QualityWarning::kind(Self) -> String
 pub fn QualityWarning::record_id(Self) -> Int
 pub fn QualityWarning::source(Self) -> String
 pub fn QualityWarning::to_json(Self) -> Json
+
+pub struct YoloFile {
+  image_id : Int
+  file : String
+}
+pub fn YoloFile::file(Self) -> String
+pub fn YoloFile::image_id(Self) -> Int
+
+pub struct YoloManifest {
+  category_ids : Array[Int]
+  images : Array[YoloFile]
+}
+pub fn YoloManifest::category_ids(Self) -> Array[Int]
+pub fn YoloManifest::images(Self) -> Array[YoloFile]
 
 // Type aliases
 

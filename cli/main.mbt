@@ -12,7 +12,7 @@ async fn main {
   let arguments = @env.args()
   if arguments.length() < 3 {
     fail_command(
-      "usage: moondeteval <ground-truth.json> <detections.json> [--compare OTHER.json] [--diagnostics] [--min-ap50 N] [--fail-on-warning] [--output PATH] [--max-input-bytes N] [--max-records N] [--max-diagnostics N] [--max-report-bytes N]",
+      "usage: moondeteval <ground-truth.json> <detections.json|manifest.json> [--prediction-format coco|yolo] [--compare OTHER.json] [--compare-format coco|yolo] [--diagnostics] [--min-ap50 N] [--fail-on-warning] [--output PATH] [--max-input-bytes N] [--max-total-input-bytes N] [--max-records N] [--max-diagnostics N] [--max-report-bytes N]",
       2,
     )
     return
@@ -20,9 +20,14 @@ async fn main {
   let mut include_diagnostics = false
   let mut fail_on_warning = false
   let mut comparison_path : String? = None
+  let mut prediction_format = "coco"
+  let mut comparison_format = "coco"
+  let mut seen_prediction_format = false
+  let mut seen_comparison_format = false
   let mut minimum_ap50 : Double? = None
   let mut output_path : String? = None
   let mut max_input_bytes = 67108864
+  let mut max_total_input_bytes = 134217728
   let mut max_records = 100000
   let mut max_diagnostics = 100000
   let mut max_report_bytes = 67108864
@@ -55,6 +60,30 @@ async fn main {
         comparison_path = Some(arguments[index + 1])
         index += 2
       }
+      "--prediction-format" | "--compare-format" => {
+        let option = arguments[index]
+        if index + 1 >= arguments.length() ||
+          (arguments[index + 1] != "coco" && arguments[index + 1] != "yolo") {
+          fail_command(option + " requires coco or yolo", 2)
+          return
+        }
+        if option == "--prediction-format" {
+          if seen_prediction_format {
+            fail_command(option + " may only be given once", 2)
+            return
+          }
+          prediction_format = arguments[index + 1]
+          seen_prediction_format = true
+        } else {
+          if seen_comparison_format {
+            fail_command(option + " may only be given once", 2)
+            return
+          }
+          comparison_format = arguments[index + 1]
+          seen_comparison_format = true
+        }
+        index += 2
+      }
       "--min-ap50" => {
         if minimum_ap50 is Some(_) || index + 1 >= arguments.length() {
           fail_command("--min-ap50 requires one value", 2)
@@ -84,6 +113,7 @@ async fn main {
         index += 2
       }
       "--max-input-bytes"
+      | "--max-total-input-bytes"
       | "--max-records"
       | "--max-diagnostics"
       | "--max-report-bytes" => {
@@ -104,6 +134,8 @@ async fn main {
         }
         if option == "--max-input-bytes" {
           max_input_bytes = value
+        } else if option == "--max-total-input-bytes" {
+          max_total_input_bytes = value
         } else if option == "--max-records" {
           max_records = value
         } else if option == "--max-diagnostics" {
@@ -118,6 +150,10 @@ async fn main {
         return
       }
     }
+  }
+  if seen_comparison_format && comparison_path is None {
+    fail_command("--compare-format requires --compare", 2)
+    return
   }
   match output_path {
     Some(path) => {
@@ -143,66 +179,64 @@ async fn main {
     None => ()
   }
   let sources : Array[String] = []
+  let mut input_bytes = 0L
   let input_paths = [arguments[1], arguments[2]]
   match comparison_path {
     Some(path) => input_paths.push(path)
     None => ()
   }
   for path in input_paths {
-    let size = @fs.file_size(path) catch {
+    let (content, size) = read_limited_input(
+      path,
+      max_input_bytes,
+      max_total_input_bytes.to_int64() - input_bytes,
+    ) catch {
       error => {
-        fail_command("cannot inspect input " + path + ": \{error}", 2)
+        fail_command(error.message(), 2)
         return
       }
     }
-    if size > max_input_bytes.to_int64() {
-      fail_command(
-        "input " +
-        path +
-        " is \{size} bytes, exceeding --max-input-bytes \{max_input_bytes}",
-        2,
-      )
-      return
-    }
-    let content = @fs.read_file(path).text() catch {
-      error => {
-        fail_command("cannot read input " + path + ": \{error}", 2)
-        return
-      }
-    }
-    if content.length() > max_input_bytes {
-      fail_command(
-        "input " + path + " grew beyond --max-input-bytes during read",
-        2,
-      )
-      return
-    }
+    input_bytes += size
     sources.push(content)
   }
   let ground_truth = sources[0]
-  let detections = sources[1]
   let dataset = @moondeteval.parse_coco_dataset(ground_truth) catch {
     error => {
       fail_command("ground truth " + arguments[1] + ": " + error.message(), 2)
       return
     }
   }
-  let predictions = @moondeteval.parse_coco_detections(detections) catch {
+  let (predictions, prediction_bytes) = load_predictions(
+    sources[1],
+    arguments[2],
+    prediction_format,
+    dataset,
+    max_input_bytes,
+    max_total_input_bytes.to_int64() - input_bytes,
+    max_records,
+  ) catch {
     error => {
-      fail_command("detections " + arguments[2] + ": " + error.message(), 2)
+      fail_command(error.message(), 2)
       return
     }
   }
+  input_bytes += prediction_bytes
   let comparison_predictions = if sources.length() == 3 {
-    let parsed = @moondeteval.parse_coco_detections(sources[2]) catch {
+    let (parsed, comparison_bytes) = load_predictions(
+      sources[2],
+      input_paths[2],
+      comparison_format,
+      dataset,
+      max_input_bytes,
+      max_total_input_bytes.to_int64() - input_bytes,
+      max_records,
+    ) catch {
       error => {
-        fail_command(
-          "comparison detections " + input_paths[2] + ": " + error.message(),
-          2,
-        )
+        fail_command(error.message(), 2)
         return
       }
     }
+    input_bytes += comparison_bytes
     Some(parsed)
   } else {
     None

@@ -1,0 +1,14 @@
+{
+  "images": [
+    {"id": 9, "width": 320, "height": 200},
+    {"id": 12, "width": 100, "height": 100}
+  ],
+  "categories": [
+    {"id": 42, "name": "vehicle"},
+    {"id": 7, "name": "person"}
+  ],
+  "annotations": [
+    {"id": 101, "image_id": 9, "category_id": 42, "bbox": [0, 60, 160, 80], "area": 12800},
+    {"id": 102, "image_id": 12, "category_id": 7, "bbox": [20, 20, 20, 20], "area": 400}
+  ]
+}

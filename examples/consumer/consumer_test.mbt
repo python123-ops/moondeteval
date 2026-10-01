@@ -23,6 +23,13 @@ test "independent module calls MoonDetEval public API" {
   )
   assert_eq(yolo[0].id(), 5)
   assert_eq(@moondeteval.evaluate(dataset, yolo).summary().ap50(), 1.0)
+  let manifest = @moondeteval.parse_yolo_manifest(
+    "{\"category_ids\":[2],\"images\":[{\"image_id\":1,\"file\":\"labels/1.txt\"}]}",
+    dataset,
+  )
+  assert_eq(manifest.category_ids()[0], 2)
+  assert_eq(manifest.images()[0].image_id(), 1)
+  assert_eq(manifest.images()[0].file(), "labels/1.txt")
 }
 
 ///|

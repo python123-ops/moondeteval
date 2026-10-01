@@ -1,0 +1,7 @@
+{
+  "category_ids": [42, 7],
+  "images": [
+    {"image_id": 12, "file": "labels/image-12.txt"},
+    {"image_id": 9, "file": "labels/image-9.txt"}
+  ]
+}
