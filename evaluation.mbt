@@ -103,8 +103,10 @@ pub fn ClassMetrics::metrics(self : ClassMetrics) -> Metrics {
 ///|
 pub struct EvaluationReport {
   schema_version : String
+  config : EvalConfig
   summary : Metrics
   classes : Array[ClassMetrics]
+  diagnostics : Array[MatchDiagnostic]
 } derive(ToJson)
 
 ///|
@@ -121,10 +123,130 @@ pub fn EvaluationReport::summary(self : EvaluationReport) -> Metrics {
 }
 
 ///|
+pub fn EvaluationReport::config(self : EvaluationReport) -> EvalConfig {
+  self.config
+}
+
+///|
 pub fn EvaluationReport::classes(
   self : EvaluationReport,
 ) -> Array[ClassMetrics] {
   self.classes.copy()
+}
+
+///|
+/// One detection decision, or one unmatched eligible ground truth, at an IoU threshold.
+/// Diagnostics use the all-area range and maxDets=100.
+pub struct MatchDiagnostic {
+  iou_threshold : Double
+  image_id : Int
+  category_id : Int
+  detection_id : Int?
+  ground_truth_id : Int?
+  iou : Double
+  status : String
+  reason : String
+} derive(ToJson)
+
+///|
+pub extend MatchDiagnostic with ToJson::{to_json}
+
+///|
+pub fn MatchDiagnostic::iou_threshold(self : MatchDiagnostic) -> Double {
+  self.iou_threshold
+}
+
+///|
+pub fn MatchDiagnostic::image_id(self : MatchDiagnostic) -> Int {
+  self.image_id
+}
+
+///|
+pub fn MatchDiagnostic::category_id(self : MatchDiagnostic) -> Int {
+  self.category_id
+}
+
+///|
+pub fn MatchDiagnostic::detection_id(self : MatchDiagnostic) -> Int? {
+  self.detection_id
+}
+
+///|
+pub fn MatchDiagnostic::ground_truth_id(self : MatchDiagnostic) -> Int? {
+  self.ground_truth_id
+}
+
+///|
+/// IoU of the chosen match, or zero when no ground truth was matched.
+pub fn MatchDiagnostic::iou(self : MatchDiagnostic) -> Double {
+  self.iou
+}
+
+///|
+pub fn MatchDiagnostic::status(self : MatchDiagnostic) -> String {
+  self.status
+}
+
+///|
+pub fn MatchDiagnostic::reason(self : MatchDiagnostic) -> String {
+  self.reason
+}
+
+///|
+pub fn EvaluationReport::diagnostics(
+  self : EvaluationReport,
+) -> Array[MatchDiagnostic] {
+  self.diagnostics.copy()
+}
+
+///|
+/// AP and AR average over these IoU thresholds. AP50 and AP75 remain fixed probes.
+pub struct EvalConfig {
+  iou_thresholds : Array[Double]
+  include_diagnostics : Bool
+} derive(ToJson)
+
+///|
+pub extend EvalConfig with ToJson::{to_json}
+
+///|
+pub fn EvalConfig::new(
+  iou_thresholds : Array[Double],
+  include_diagnostics? : Bool = false,
+) -> EvalConfig raise EvalError {
+  if iou_thresholds.is_empty() || iou_thresholds.length() > 100 {
+    raise InvalidConfig("IoU thresholds must contain 1 to 100 values")
+  }
+  let mut previous = 0.0
+  for threshold in iou_thresholds {
+    if !finite(threshold) || threshold <= previous || threshold > 1.0 {
+      raise InvalidConfig(
+        "IoU thresholds must be finite, strictly increasing, and in (0,1]",
+      )
+    }
+    previous = threshold
+  }
+  { iou_thresholds: iou_thresholds.copy(), include_diagnostics, }
+}
+
+///|
+pub fn EvalConfig::coco() -> EvalConfig {
+  {
+    iou_thresholds: [
+      0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.8999999999999999, 0.95,
+    ],
+    include_diagnostics: false,
+  }
+}
+
+///|
+pub fn EvalConfig::iou_thresholds(self : EvalConfig) -> Array[Double] {
+  self.iou_thresholds.copy()
+}
+
+///|
+pub fn EvalConfig::include_diagnostics(self : EvalConfig) -> Bool {
+  self.include_diagnostics
 }
 
 ///|
@@ -193,6 +315,44 @@ fn record_before(left : MatchRecord, right : MatchRecord) -> Int {
 }
 
 ///|
+/// A read-only explanation of an unmatched, non-ignored detection.
+fn classify_false_positive(
+  dataset : Dataset,
+  image_id : Int,
+  category_id : Int,
+  detection : Box,
+  truths : Array[RankedTruth],
+  used : Array[Bool],
+  ignored : Array[Bool],
+  threshold : Double,
+) -> String {
+  for index in 0..<truths.length() {
+    let truth = truths[index].truth
+    if used[index] &&
+      !ignored[index] &&
+      overlap(detection, truth.bbox, false) >= threshold {
+      return "duplicate"
+    }
+  }
+  for truth in dataset.truths {
+    if truth.image_id == image_id &&
+      truth.category_id != category_id &&
+      !truth.ignore &&
+      !truth.iscrowd &&
+      overlap(detection, truth.bbox, false) >= threshold {
+      return "wrong_class"
+    }
+  }
+  for index in 0..<truths.length() {
+    let truth = truths[index].truth
+    if !ignored[index] && overlap(detection, truth.bbox, false) >= 0.1 {
+      return "localization"
+    }
+  }
+  "background"
+}
+
+///|
 fn evaluate_curve(
   dataset : Dataset,
   detections : Array[RankedDetection],
@@ -201,6 +361,7 @@ fn evaluate_curve(
   lower : Double,
   upper : Double,
   max_dets : Int,
+  trace : Array[MatchDiagnostic]?,
 ) -> CurveValue {
   let records : Array[MatchRecord] = []
   let mut positives = 0
@@ -277,12 +438,85 @@ fn evaluate_curve(
       if best >= 0 {
         used[best] = true
       }
+      match trace {
+        Some(entries) => {
+          let ground_truth_id = if best >= 0 {
+            Some(truths[best].truth.id)
+          } else {
+            None
+          }
+          let reason = if best >= 0 {
+            let truth = truths[best].truth
+            if truth.iscrowd {
+              "crowd"
+            } else if truth.ignore {
+              "ground_truth_ignore"
+            } else if !in_area(truth.area, lower, upper) {
+              "ground_truth_area"
+            } else {
+              "matched"
+            }
+          } else if match_ignored {
+            "detection_area"
+          } else {
+            classify_false_positive(
+              dataset,
+              image.id,
+              category_id,
+              candidate.detection.bbox,
+              truths,
+              used,
+              ignored,
+              threshold,
+            )
+          }
+          entries.push({
+            iou_threshold: threshold,
+            image_id: image.id,
+            category_id,
+            detection_id: Some(candidate.detection.id),
+            ground_truth_id,
+            iou: if best >= 0 {
+              best_overlap
+            } else {
+              0.0
+            },
+            status: if match_ignored {
+              "ignored"
+            } else if best >= 0 {
+              "tp"
+            } else {
+              "fp"
+            },
+            reason,
+          })
+        }
+        None => ()
+      }
       records.push({
         score: candidate.detection.score,
         order: candidate.order,
         matched: best >= 0,
         ignored: match_ignored,
       })
+    }
+    match trace {
+      Some(entries) =>
+        for truth_index in 0..<truths.length() {
+          if !ignored[truth_index] && !used[truth_index] {
+            entries.push({
+              iou_threshold: threshold,
+              image_id: image.id,
+              category_id,
+              detection_id: None,
+              ground_truth_id: Some(truths[truth_index].truth.id),
+              iou: 0.0,
+              status: "fn",
+              reason: "unmatched_ground_truth",
+            })
+          }
+        }
+      None => ()
     }
   }
   if positives == 0 {
@@ -347,6 +581,8 @@ fn metrics_for_category(
   dataset : Dataset,
   detections : Array[RankedDetection],
   category_id : Int,
+  thresholds : Array[Double],
+  diagnostics : Array[MatchDiagnostic]?,
 ) -> Metrics {
   let all_ap : Array[Double] = []
   let all_ar1 : Array[Double] = []
@@ -360,31 +596,67 @@ fn metrics_for_category(
   let large_ar : Array[Double] = []
   let mut ap50 = -1.0
   let mut ap75 = -1.0
-  for step in 0..<10 {
-    let threshold = 0.5 + step.to_double() * 0.05
+  let mut saw_ap50 = false
+  let mut saw_ap75 = false
+  for threshold in thresholds {
     let all = evaluate_curve(
-      dataset, detections, category_id, threshold, 0.0, 1.0e10, 100,
+      dataset, detections, category_id, threshold, 0.0, 1.0e10, 100, diagnostics,
     )
     all_ap.push(all.ap)
     all_ar100.push(all.ar)
     all_ar1.push(
       evaluate_curve(
-        dataset, detections, category_id, threshold, 0.0, 1.0e10, 1,
+        dataset,
+        detections,
+        category_id,
+        threshold,
+        0.0,
+        1.0e10,
+        1,
+        None,
       ).ar,
     )
     all_ar10.push(
       evaluate_curve(
-        dataset, detections, category_id, threshold, 0.0, 1.0e10, 10,
+        dataset,
+        detections,
+        category_id,
+        threshold,
+        0.0,
+        1.0e10,
+        10,
+        None,
       ).ar,
     )
     let small = evaluate_curve(
-      dataset, detections, category_id, threshold, 0.0, 1024.0, 100,
+      dataset,
+      detections,
+      category_id,
+      threshold,
+      0.0,
+      1024.0,
+      100,
+      None,
     )
     let medium = evaluate_curve(
-      dataset, detections, category_id, threshold, 1024.0, 9216.0, 100,
+      dataset,
+      detections,
+      category_id,
+      threshold,
+      1024.0,
+      9216.0,
+      100,
+      None,
     )
     let large = evaluate_curve(
-      dataset, detections, category_id, threshold, 9216.0, 1.0e10, 100,
+      dataset,
+      detections,
+      category_id,
+      threshold,
+      9216.0,
+      1.0e10,
+      100,
+      None,
     )
     small_ap.push(small.ap)
     medium_ap.push(medium.ap)
@@ -392,12 +664,38 @@ fn metrics_for_category(
     small_ar.push(small.ar)
     medium_ar.push(medium.ar)
     large_ar.push(large.ar)
-    if step == 0 {
+    if threshold == 0.5 {
       ap50 = all.ap
+      saw_ap50 = true
     }
-    if step == 5 {
+    if threshold == 0.75 {
       ap75 = all.ap
+      saw_ap75 = true
     }
+  }
+  if !saw_ap50 {
+    ap50 = evaluate_curve(
+        dataset,
+        detections,
+        category_id,
+        0.5,
+        0.0,
+        1.0e10,
+        100,
+        None,
+      ).ap
+  }
+  if !saw_ap75 {
+    ap75 = evaluate_curve(
+        dataset,
+        detections,
+        category_id,
+        0.75,
+        0.0,
+        1.0e10,
+        100,
+        None,
+      ).ap
   }
   {
     ap: average(all_ap),
@@ -420,6 +718,38 @@ fn metrics_for_category(
 pub fn evaluate(
   dataset : Dataset,
   predictions : Array[Detection],
+) -> EvaluationReport raise EvalError {
+  evaluate_internal(dataset, predictions, EvalConfig::coco())
+}
+
+///|
+/// Evaluate and retain per-detection decisions for the default IoU thresholds.
+pub fn evaluate_with_diagnostics(
+  dataset : Dataset,
+  predictions : Array[Detection],
+) -> EvaluationReport raise EvalError {
+  let default = EvalConfig::coco()
+  evaluate_internal(dataset, predictions, {
+    iou_thresholds: default.iou_thresholds,
+    include_diagnostics: true,
+  })
+}
+
+///|
+/// Evaluate with custom AP/AR IoU thresholds. Area bins and maxDets remain COCO defaults.
+pub fn evaluate_with_config(
+  dataset : Dataset,
+  predictions : Array[Detection],
+  config : EvalConfig,
+) -> EvaluationReport raise EvalError {
+  evaluate_internal(dataset, predictions, config)
+}
+
+///|
+fn evaluate_internal(
+  dataset : Dataset,
+  predictions : Array[Detection],
+  config : EvalConfig,
 ) -> EvaluationReport raise EvalError {
   let image_ids : Map[Int, Bool] = Map([])
   let category_ids : Map[Int, Bool] = Map([])
@@ -445,6 +775,7 @@ pub fn evaluate(
     detections.push({ detection: prediction, order: index, })
   }
   let classes : Array[ClassMetrics] = []
+  let diagnostics : Array[MatchDiagnostic] = []
   let ap : Array[Double] = []
   let ap50 : Array[Double] = []
   let ap75 : Array[Double] = []
@@ -458,7 +789,17 @@ pub fn evaluate(
   let ar_medium : Array[Double] = []
   let ar_large : Array[Double] = []
   for category in dataset.categories {
-    let metrics = metrics_for_category(dataset, detections, category.id)
+    let metrics = metrics_for_category(
+      dataset,
+      detections,
+      category.id,
+      config.iou_thresholds,
+      if config.include_diagnostics {
+        Some(diagnostics)
+      } else {
+        None
+      },
+    )
     classes.push({ category_id: category.id, metrics, })
     ap.push(metrics.ap)
     ap50.push(metrics.ap50)
@@ -475,6 +816,7 @@ pub fn evaluate(
   }
   {
     schema_version: "0.1.0",
+    config,
     summary: {
       ap: average(ap),
       ap50: average(ap50),
@@ -490,5 +832,6 @@ pub fn evaluate(
       ar_large: average(ar_large),
     },
     classes,
+    diagnostics,
   }
 }

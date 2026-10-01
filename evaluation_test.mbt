@@ -100,3 +100,133 @@ test "unknown and duplicate detection identifiers fail before scoring" {
     _ => fail("unknown image accepted")
   }
 }
+
+///|
+test "diagnostics explain crowd, true positive, false positive, and false negative" {
+  let regular = @moondeteval.Box::from_xywh(0.0, 0.0, 20.0, 20.0)
+  let crowd_box = @moondeteval.Box::from_xywh(40.0, 40.0, 40.0, 40.0)
+  let inside_crowd = @moondeteval.Box::from_xywh(45.0, 45.0, 10.0, 10.0)
+  let missed = @moondeteval.Box::from_xywh(100.0, 100.0, 20.0, 20.0)
+  let dataset = @moondeteval.Dataset::new(
+    [@moondeteval.Image::new(1, 200, 200)],
+    [@moondeteval.Category::new(1, "object")],
+    [
+      @moondeteval.GroundTruth::new(1, 1, 1, regular, area=400.0),
+      @moondeteval.GroundTruth::new(
+        2,
+        1,
+        1,
+        crowd_box,
+        area=1600.0,
+        iscrowd=true,
+      ),
+      @moondeteval.GroundTruth::new(3, 1, 1, missed, area=400.0),
+    ],
+  )
+  let predictions = [
+    @moondeteval.Detection::new(10, 1, 1, inside_crowd, 0.99),
+    @moondeteval.Detection::new(11, 1, 1, regular, 0.9),
+    @moondeteval.Detection::new(12, 1, 1, regular, 0.8),
+  ]
+  let plain = @moondeteval.evaluate(dataset, predictions)
+  let traced = @moondeteval.evaluate_with_diagnostics(dataset, predictions)
+  assert_eq(plain.summary().ap(), traced.summary().ap())
+  assert_eq(plain.summary().ar100(), traced.summary().ar100())
+  assert_eq(plain.diagnostics().length(), 0)
+  let trace = traced.diagnostics()
+  assert_eq(trace.length(), 40)
+  assert_eq(trace[0].iou_threshold(), 0.5)
+  assert_eq(trace[0].status(), "ignored")
+  assert_eq(trace[0].reason(), "crowd")
+  assert_eq(trace[0].detection_id(), Some(10))
+  assert_eq(trace[0].ground_truth_id(), Some(2))
+  assert_eq(trace[1].status(), "tp")
+  assert_eq(trace[1].ground_truth_id(), Some(1))
+  assert_eq(trace[2].status(), "fp")
+  assert_eq(trace[3].status(), "fn")
+  assert_eq(trace[3].ground_truth_id(), Some(3))
+}
+
+///|
+test "custom IoU thresholds change AP while AP50 and AP75 stay fixed" {
+  let truth_box = @moondeteval.Box::from_xywh(0.0, 0.0, 20.0, 10.0)
+  let prediction_box = @moondeteval.Box::from_xywh(0.0, 0.0, 17.0, 10.0)
+  let dataset = @moondeteval.Dataset::new(
+    [@moondeteval.Image::new(1, 100, 100)],
+    [@moondeteval.Category::new(1, "object")],
+    [@moondeteval.GroundTruth::new(1, 1, 1, truth_box, area=200.0)],
+  )
+  let predictions = [@moondeteval.Detection::new(1, 1, 1, prediction_box, 0.9)]
+  let thresholds = [0.9]
+  let config = @moondeteval.EvalConfig::new(
+    thresholds,
+    include_diagnostics=true,
+  )
+  thresholds[0] = 0.5
+  let report = @moondeteval.evaluate_with_config(dataset, predictions, config)
+  assert_eq(report.config().iou_thresholds(), [0.9])
+  assert_eq(report.summary().ap(), 0.0)
+  assert_eq(report.summary().ap50(), 1.0)
+  assert_eq(report.summary().ap75(), 1.0)
+  assert_eq(report.diagnostics().length(), 2)
+  assert_eq(report.diagnostics()[0].status(), "fp")
+  assert_eq(report.diagnostics()[1].status(), "fn")
+}
+
+///|
+test "evaluation configuration rejects empty and non-increasing thresholds" {
+  try @moondeteval.EvalConfig::new([]) catch {
+    @moondeteval.InvalidConfig(_) => ()
+    _ => fail("wrong error")
+  } noraise {
+    _ => fail("empty thresholds accepted")
+  }
+  try @moondeteval.EvalConfig::new([0.5, 0.5]) catch {
+    @moondeteval.InvalidConfig(_) => ()
+    _ => fail("wrong error")
+  } noraise {
+    _ => fail("duplicate thresholds accepted")
+  }
+  try @moondeteval.EvalConfig::new([1.1]) catch {
+    @moondeteval.InvalidConfig(_) => ()
+    _ => fail("wrong error")
+  } noraise {
+    _ => fail("out-of-range threshold accepted")
+  }
+}
+
+///|
+test "false-positive labels follow duplicate, wrong-class, localization, background priority" {
+  let box = @moondeteval.Box::from_xywh(0.0, 0.0, 20.0, 20.0)
+  let shifted = @moondeteval.Box::from_xywh(10.0, 0.0, 20.0, 20.0)
+  let dataset = @moondeteval.Dataset::new(
+    [
+      @moondeteval.Image::new(1, 100, 100),
+      @moondeteval.Image::new(2, 100, 100),
+      @moondeteval.Image::new(3, 100, 100),
+      @moondeteval.Image::new(4, 100, 100),
+    ],
+    [
+      @moondeteval.Category::new(1, "predicted"),
+      @moondeteval.Category::new(2, "other"),
+    ],
+    [
+      @moondeteval.GroundTruth::new(1, 1, 1, box, area=400.0),
+      @moondeteval.GroundTruth::new(2, 2, 2, box, area=400.0),
+      @moondeteval.GroundTruth::new(3, 3, 1, box, area=400.0),
+    ],
+  )
+  let predictions = [
+    @moondeteval.Detection::new(10, 1, 1, box, 0.9),
+    @moondeteval.Detection::new(11, 1, 1, box, 0.8),
+    @moondeteval.Detection::new(12, 2, 1, box, 0.7),
+    @moondeteval.Detection::new(13, 3, 1, shifted, 0.6),
+    @moondeteval.Detection::new(14, 4, 1, shifted, 0.5),
+  ]
+  let trace = @moondeteval.evaluate_with_diagnostics(dataset, predictions).diagnostics()
+  assert_eq(trace[1].status(), "fp")
+  assert_eq(trace[1].reason(), "duplicate")
+  assert_eq(trace[2].reason(), "wrong_class")
+  assert_eq(trace[3].reason(), "localization")
+  assert_eq(trace[5].reason(), "background")
+}

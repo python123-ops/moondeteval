@@ -56,6 +56,44 @@ def compare(name, ground_truth, detections):
     print(f"{name}: all {len(METRICS)} summary metrics match (absolute tolerance 1e-9)")
 
 
+def check_cli_options():
+    gt_path = ROOT / "examples/ground-truth.json"
+    dt_path = ROOT / "examples/detections.json"
+    command = ["moon", "run", "cli", "--target", "native", "--", str(gt_path), str(dt_path)]
+    plain = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, check=True)
+    traced = subprocess.run(
+        command + ["--diagnostics", "--min-ap50", "1"],
+        cwd=ROOT, capture_output=True, text=True, check=True,
+    )
+    plain_report = json.loads(plain.stdout)
+    traced_report = json.loads(traced.stdout)
+    assert plain_report["summary"] == traced_report["summary"]
+    assert plain_report["diagnostics"] == []
+    assert len(traced_report["diagnostics"]) == 30
+    assert [item["status"] for item in traced_report["diagnostics"][:3]] == [
+        "ignored", "tp", "fp"
+    ]
+
+    with tempfile.TemporaryDirectory() as directory:
+        empty_path = Path(directory) / "empty.json"
+        empty_path.write_text("[]", encoding="utf-8")
+        failed = subprocess.run(
+            command[:-1] + [str(empty_path), "--min-ap50", "0.5"],
+            cwd=ROOT, capture_output=True, text=True,
+        )
+        assert failed.returncode == 3, failed.stderr
+        assert json.loads(failed.stdout)["summary"]["ap50"] == 0
+        assert "AP50 gate failed" in failed.stderr
+
+    invalid = subprocess.run(
+        command + ["--min-ap50", "nan"],
+        cwd=ROOT, capture_output=True, text=True,
+    )
+    assert invalid.returncode == 2
+    assert not invalid.stdout
+    print("CLI diagnostics and AP50 gate: report invariance, pass/fail codes verified")
+
+
 def main():
     version = importlib.metadata.version("pycocotools")
     if version != "2.0.7":
@@ -85,6 +123,20 @@ def main():
         {"image_id": 7, "category_id": 9, "bbox": [0, 0, 100, 100], "score": 0.6},
     ]
     compare("two images, sparse classes, area boundary, ties", gt, dt)
+
+    boundary_gt = {
+        "info": {},
+        "images": [{"id": 1, "width": 100, "height": 100}],
+        "categories": [{"id": 1, "name": "object"}],
+        "annotations": [
+            {"id": 1, "image_id": 1, "category_id": 1, "bbox": [0, 0, 20, 10], "area": 200, "iscrowd": 0}
+        ],
+    }
+    boundary_dt = [
+        {"image_id": 1, "category_id": 1, "bbox": [0, 0, 17, 10], "score": 0.9}
+    ]
+    compare("IoU exactly at the 0.85 threshold", boundary_gt, boundary_dt)
+    check_cli_options()
 
 
 if __name__ == "__main__":

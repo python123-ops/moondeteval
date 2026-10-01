@@ -8,6 +8,10 @@ import {
 // Values
 pub fn evaluate(Dataset, Array[Detection]) -> EvaluationReport raise EvalError
 
+pub fn evaluate_with_config(Dataset, Array[Detection], EvalConfig) -> EvaluationReport raise EvalError
+
+pub fn evaluate_with_diagnostics(Dataset, Array[Detection]) -> EvaluationReport raise EvalError
+
 pub fn parse_coco_dataset(String) -> Dataset raise EvalError
 
 pub fn parse_coco_detections(String) -> Array[Detection] raise EvalError
@@ -83,12 +87,26 @@ pub fn Detection::not_equal(Self, Self) -> Bool
 pub fn Detection::score(Self) -> Double
 pub fn Detection::to_repr(Self) -> @debug.Repr
 
+pub struct EvalConfig {
+  iou_thresholds : Array[Double]
+  include_diagnostics : Bool
+} derive(ToJson)
+pub fn EvalConfig::coco() -> Self
+pub fn EvalConfig::include_diagnostics(Self) -> Bool
+pub fn EvalConfig::iou_thresholds(Self) -> Array[Double]
+pub fn EvalConfig::new(Array[Double], include_diagnostics? : Bool) -> Self raise EvalError
+pub fn EvalConfig::to_json(Self) -> Json
+
 pub struct EvaluationReport {
   schema_version : String
+  config : EvalConfig
   summary : Metrics
   classes : Array[ClassMetrics]
+  diagnostics : Array[MatchDiagnostic]
 } derive(ToJson)
 pub fn EvaluationReport::classes(Self) -> Array[ClassMetrics]
+pub fn EvaluationReport::config(Self) -> EvalConfig
+pub fn EvaluationReport::diagnostics(Self) -> Array[MatchDiagnostic]
 pub fn EvaluationReport::summary(Self) -> Metrics
 pub fn EvaluationReport::to_json(Self) -> Json
 pub fn EvaluationReport::to_json_string(Self) -> String
@@ -126,6 +144,26 @@ pub fn Image::new(Int, Int, Int) -> Self raise EvalError
 pub fn Image::not_equal(Self, Self) -> Bool
 pub fn Image::to_repr(Self) -> @debug.Repr
 pub fn Image::width(Self) -> Int
+
+pub struct MatchDiagnostic {
+  iou_threshold : Double
+  image_id : Int
+  category_id : Int
+  detection_id : Int?
+  ground_truth_id : Int?
+  iou : Double
+  status : String
+  reason : String
+} derive(ToJson)
+pub fn MatchDiagnostic::category_id(Self) -> Int
+pub fn MatchDiagnostic::detection_id(Self) -> Int?
+pub fn MatchDiagnostic::ground_truth_id(Self) -> Int?
+pub fn MatchDiagnostic::image_id(Self) -> Int
+pub fn MatchDiagnostic::iou(Self) -> Double
+pub fn MatchDiagnostic::iou_threshold(Self) -> Double
+pub fn MatchDiagnostic::reason(Self) -> String
+pub fn MatchDiagnostic::status(Self) -> String
+pub fn MatchDiagnostic::to_json(Self) -> Json
 
 pub struct Metrics {
   ap : Double
