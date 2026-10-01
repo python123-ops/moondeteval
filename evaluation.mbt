@@ -134,6 +134,12 @@ priv struct RankedDetection {
 }
 
 ///|
+priv struct RankedTruth {
+  truth : GroundTruth
+  order : Int
+}
+
+///|
 priv struct MatchRecord {
   score : Double
   order : Int
@@ -199,11 +205,11 @@ fn evaluate_curve(
   let records : Array[MatchRecord] = []
   let mut positives = 0
   for image in dataset.images {
-    let truths : Array[GroundTruth] = []
+    let truths : Array[RankedTruth] = []
     let candidates : Array[RankedDetection] = []
-    for truth in dataset.truths {
+    for order, truth in dataset.truths {
       if truth.image_id == image.id && truth.category_id == category_id {
-        truths.push(truth)
+        truths.push({ truth, order, })
       }
     }
     for candidate in detections {
@@ -213,14 +219,14 @@ fn evaluate_curve(
       }
     }
     truths.sort_by(fn(left, right) {
-      let left_ignored = left.ignore ||
-        left.iscrowd ||
-        !in_area(left.area, lower, upper)
-      let right_ignored = right.ignore ||
-        right.iscrowd ||
-        !in_area(right.area, lower, upper)
+      let left_ignored = left.truth.ignore ||
+        left.truth.iscrowd ||
+        !in_area(left.truth.area, lower, upper)
+      let right_ignored = right.truth.ignore ||
+        right.truth.iscrowd ||
+        !in_area(right.truth.area, lower, upper)
       if left_ignored == right_ignored {
-        0
+        left.order - right.order
       } else if left_ignored {
         1
       } else {
@@ -230,9 +236,9 @@ fn evaluate_curve(
     candidates.sort_by(ranked_before)
     let used = Array::make(truths.length(), false)
     let ignored = Array::makei(truths.length(), fn(index) {
-      truths[index].ignore ||
-      truths[index].iscrowd ||
-      !in_area(truths[index].area, lower, upper)
+      truths[index].truth.ignore ||
+      truths[index].truth.iscrowd ||
+      !in_area(truths[index].truth.area, lower, upper)
     })
     for flag in ignored {
       if !flag {
@@ -245,7 +251,7 @@ fn evaluate_curve(
       let mut best = -1
       let mut best_overlap = threshold.min(1.0 - 1.0e-10)
       for truth_index in 0..<truths.length() {
-        let truth = truths[truth_index]
+        let truth = truths[truth_index].truth
         if used[truth_index] && !truth.iscrowd {
           continue
         }

@@ -40,7 +40,7 @@ The public API also supports `Image::new`, `Category::new`, `Box::from_xywh`, `G
 moon fmt --check
 moon check --target all --deny-warn
 moon test --target all --deny-warn
-python -m pip install pycocotools==2.0.7
+python -m pip install numpy==1.26.4 pycocotools==2.0.7
 python reference_compare.py
 ```
 
