@@ -530,6 +530,14 @@ priv struct RankedTruth {
 }
 
 ///|
+priv struct PreparedImage {
+  image_id : Int
+  truths : Array[RankedTruth]
+  all_truths : Array[GroundTruth]
+  candidates : Array[RankedDetection]
+}
+
+///|
 priv struct MatchRecord {
   score : Double
   order : Int
@@ -596,10 +604,69 @@ fn record_before(left : MatchRecord, right : MatchRecord) -> Int {
 }
 
 ///|
+/// Group and rank once per category; threshold and area matching remain per curve.
+fn prepare_category(
+  dataset : Dataset,
+  detections : Array[RankedDetection],
+  category_id : Int,
+) -> Array[PreparedImage] {
+  let truths_by_image : Map[Int, Array[RankedTruth]] = Map([])
+  let all_truths_by_image : Map[Int, Array[GroundTruth]] = Map([])
+  let detections_by_image : Map[Int, Array[RankedDetection]] = Map([])
+  for order, truth in dataset.truths {
+    match all_truths_by_image.get(truth.image_id) {
+      Some(items) => items.push(truth)
+      None => all_truths_by_image[truth.image_id] = [truth]
+    }
+    if truth.category_id == category_id {
+      match truths_by_image.get(truth.image_id) {
+        Some(items) => items.push({ truth, order, })
+        None => truths_by_image[truth.image_id] = [{ truth, order, }]
+      }
+    }
+  }
+  for candidate in detections {
+    if candidate.detection.category_id == category_id {
+      match detections_by_image.get(candidate.detection.image_id) {
+        Some(items) => items.push(candidate)
+        None => detections_by_image[candidate.detection.image_id] = [candidate]
+      }
+    }
+  }
+  let images = dataset.images.copy()
+  images.sort_by(fn(left, right) {
+    if left.id < right.id {
+      -1
+    } else if left.id > right.id {
+      1
+    } else {
+      0
+    }
+  })
+  let prepared : Array[PreparedImage] = []
+  for image in images {
+    let truths = match truths_by_image.get(image.id) {
+      Some(items) => items
+      None => []
+    }
+    let candidates = match detections_by_image.get(image.id) {
+      Some(items) => items
+      None => []
+    }
+    candidates.sort_by(ranked_before)
+    let all_truths = match all_truths_by_image.get(image.id) {
+      Some(items) => items
+      None => []
+    }
+    prepared.push({ image_id: image.id, truths, all_truths, candidates, })
+  }
+  prepared
+}
+
+///|
 /// A read-only explanation of an unmatched, non-ignored detection.
 fn classify_false_positive(
-  dataset : Dataset,
-  image_id : Int,
+  all_truths : Array[GroundTruth],
   category_id : Int,
   detection : Box,
   truths : Array[RankedTruth],
@@ -616,9 +683,8 @@ fn classify_false_positive(
       return "duplicate"
     }
   }
-  for truth in dataset.truths {
-    if truth.image_id == image_id &&
-      truth.category_id != category_id &&
+  for truth in all_truths {
+    if truth.category_id != category_id &&
       !truth.iscrowd &&
       (!respect_explicit_ignore || !truth.ignore) &&
       overlap(detection, truth.bbox, false) >= threshold {
@@ -636,8 +702,7 @@ fn classify_false_positive(
 
 ///|
 fn evaluate_curve(
-  dataset : Dataset,
-  detections : Array[RankedDetection],
+  prepared : Array[PreparedImage],
   category_id : Int,
   threshold : Double,
   lower : Double,
@@ -649,30 +714,9 @@ fn evaluate_curve(
 ) -> CurveValue {
   let records : Array[MatchRecord] = []
   let mut positives = 0
-  let images = dataset.images.copy()
-  images.sort_by(fn(left, right) {
-    if left.id < right.id {
-      -1
-    } else if left.id > right.id {
-      1
-    } else {
-      0
-    }
-  })
-  for image in images {
-    let truths : Array[RankedTruth] = []
-    let candidates : Array[RankedDetection] = []
-    for order, truth in dataset.truths {
-      if truth.image_id == image.id && truth.category_id == category_id {
-        truths.push({ truth, order, })
-      }
-    }
-    for candidate in detections {
-      if candidate.detection.image_id == image.id &&
-        candidate.detection.category_id == category_id {
-        candidates.push(candidate)
-      }
-    }
+  for group in prepared {
+    let truths = group.truths.copy()
+    let candidates = group.candidates
     truths.sort_by(fn(left, right) {
       let left_ignored = truth_ignored(
         left.truth,
@@ -694,7 +738,6 @@ fn evaluate_curve(
         -1
       }
     })
-    candidates.sort_by(ranked_before)
     let used = Array::make(truths.length(), false)
     let ignored = Array::makei(truths.length(), fn(index) {
       truth_ignored(truths[index].truth, lower, upper, respect_explicit_ignore)
@@ -758,8 +801,7 @@ fn evaluate_curve(
             "detection_area"
           } else {
             classify_false_positive(
-              dataset,
-              image.id,
+              group.all_truths,
               category_id,
               candidate.detection.bbox,
               truths,
@@ -771,7 +813,7 @@ fn evaluate_curve(
           }
           entries.push({
             iou_threshold: threshold,
-            image_id: image.id,
+            image_id: group.image_id,
             category_id,
             detection_id: Some(candidate.detection.id),
             ground_truth_id,
@@ -805,7 +847,7 @@ fn evaluate_curve(
           if !ignored[truth_index] && !used[truth_index] {
             entries.push({
               iou_threshold: threshold,
-              image_id: image.id,
+              image_id: group.image_id,
               category_id,
               detection_id: None,
               ground_truth_id: Some(truths[truth_index].truth.id),
@@ -890,8 +932,7 @@ fn average(values : Array[Double]) -> Double {
 
 ///|
 fn metrics_for_category(
-  dataset : Dataset,
-  detections : Array[RankedDetection],
+  prepared : Array[PreparedImage],
   category_id : Int,
   thresholds : Array[Double],
   diagnostics : Array[MatchDiagnostic]?,
@@ -918,8 +959,7 @@ fn metrics_for_category(
   }
   for threshold in thresholds {
     let all = evaluate_curve(
-      dataset,
-      detections,
+      prepared,
       category_id,
       threshold,
       0.0,
@@ -944,8 +984,7 @@ fn metrics_for_category(
     all_ar100.push(all.ar)
     all_ar1.push(
       evaluate_curve(
-        dataset,
-        detections,
+        prepared,
         category_id,
         threshold,
         0.0,
@@ -957,8 +996,7 @@ fn metrics_for_category(
     )
     all_ar10.push(
       evaluate_curve(
-        dataset,
-        detections,
+        prepared,
         category_id,
         threshold,
         0.0,
@@ -969,8 +1007,7 @@ fn metrics_for_category(
       ).ar,
     )
     let small = evaluate_curve(
-      dataset,
-      detections,
+      prepared,
       category_id,
       threshold,
       0.0,
@@ -980,8 +1017,7 @@ fn metrics_for_category(
       respect_explicit_ignore,
     )
     let medium = evaluate_curve(
-      dataset,
-      detections,
+      prepared,
       category_id,
       threshold,
       1024.0,
@@ -991,8 +1027,7 @@ fn metrics_for_category(
       respect_explicit_ignore,
     )
     let large = evaluate_curve(
-      dataset,
-      detections,
+      prepared,
       category_id,
       threshold,
       9216.0,
@@ -1018,8 +1053,7 @@ fn metrics_for_category(
   }
   if !saw_ap50 {
     ap50 = evaluate_curve(
-        dataset,
-        detections,
+        prepared,
         category_id,
         0.5,
         0.0,
@@ -1031,8 +1065,7 @@ fn metrics_for_category(
   }
   if !saw_ap75 {
     ap75 = evaluate_curve(
-        dataset,
-        detections,
+        prepared,
         category_id,
         0.75,
         0.0,
@@ -1181,9 +1214,9 @@ fn evaluate_internal(
   let ar_medium : Array[Double] = []
   let ar_large : Array[Double] = []
   for category in dataset.categories {
+    let prepared = prepare_category(dataset, detections, category.id)
     let metrics = metrics_for_category(
-      dataset,
-      detections,
+      prepared,
       category.id,
       config.iou_thresholds,
       if config.include_diagnostics {
@@ -1211,17 +1244,9 @@ fn evaluate_internal(
     ar_small.push(metrics.ar_small)
     ar_medium.push(metrics.ar_medium)
     ar_large.push(metrics.ar_large)
-  }
-  let image_summaries : Array[ImageSummary] = []
-  if config.include_image_summaries {
-    let counts_by_image : Map[Int, Array[Int]] = Map([])
-    for image in dataset.images {
-      counts_by_image[image.id] = [0, 0, 0, 0]
-    }
-    for category in dataset.categories {
+    if config.include_image_summaries {
       evaluate_curve(
-        dataset,
-        detections,
+        prepared,
         category.id,
         0.5,
         0.0,
@@ -1231,6 +1256,13 @@ fn evaluate_internal(
         config.ignore_policy == "respect_explicit",
       )
       |> ignore
+    }
+  }
+  let image_summaries : Array[ImageSummary] = []
+  if config.include_image_summaries {
+    let counts_by_image : Map[Int, Array[Int]] = Map([])
+    for image in dataset.images {
+      counts_by_image[image.id] = [0, 0, 0, 0]
     }
     for entry in image_trace {
       match counts_by_image.get(entry.image_id) {

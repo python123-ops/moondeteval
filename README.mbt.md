@@ -67,6 +67,8 @@ moon run cli --target native -- examples/yolo/ground-truth.json examples/yolo/ma
 
 With `--output`, the CLI writes the JSON file and prints a one-line summary. It refuses to overwrite an existing path, creates an exclusive temporary file beside the target, syncs it, then renames it without replacement. A failed evaluation creates no report; a failed gate keeps the complete report. A pre-existing `.moondeteval.tmp` file is never deleted automatically. The default CLI limits are 64 MiB **per input file** (including each YOLO TXT), 128 MiB total input bytes across ground truth, prediction files/manifests, and referenced TXT files, 100,000 total image/category/ground-truth/detection records across both models, an upper bound of 100,000 diagnostic entries across both reports, and 64 MiB of serialized report text. Use `--max-input-bytes`, `--max-total-input-bytes`, `--max-records`, `--max-diagnostics`, and `--max-report-bytes` with positive integers to change them. These guard against accidental oversized work; they are not a hard process-memory limit.
 
+For performance measurements, build the native CLI with `moon build cli --target native --release` and add `--timings`. Successful runs print `input`, `evaluation`, `serialization`, and `output` durations in microseconds to stderr while leaving the JSON on stdout unchanged. `input` includes reading, parsing, and input validation; `output` includes report-size validation and writing to stdout or the requested file. The durations exclude process startup. In particular, `--max-report-bytes` is checked after serialization, so a large diagnostic report can consume substantial memory before the limit rejects it.
+
 ## Library use
 
 ```moonbit nocheck

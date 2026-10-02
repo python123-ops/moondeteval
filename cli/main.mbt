@@ -12,7 +12,7 @@ async fn main {
   let arguments = @env.args()
   if arguments.length() < 3 {
     fail_command(
-      "usage: moondeteval <ground-truth.json> <detections.json|manifest.json> [--prediction-format coco|yolo] [--compare OTHER.json] [--compare-format coco|yolo] [--diagnostics] [--image-ranking] [--pr-curves] [--min-ap50 N] [--fail-on-warning] [--output PATH] [--max-input-bytes N] [--max-total-input-bytes N] [--max-records N] [--max-diagnostics N] [--max-report-bytes N]",
+      "usage: moondeteval <ground-truth.json> <detections.json|manifest.json> [--prediction-format coco|yolo] [--compare OTHER.json] [--compare-format coco|yolo] [--diagnostics] [--image-ranking] [--pr-curves] [--timings] [--min-ap50 N] [--fail-on-warning] [--output PATH] [--max-input-bytes N] [--max-total-input-bytes N] [--max-records N] [--max-diagnostics N] [--max-report-bytes N]",
       2,
     )
     return
@@ -20,6 +20,7 @@ async fn main {
   let mut include_diagnostics = false
   let mut include_image_summaries = false
   let mut include_pr_curves = false
+  let mut show_timings = false
   let mut fail_on_warning = false
   let mut comparison_path : String? = None
   let mut prediction_format = "coco"
@@ -58,6 +59,14 @@ async fn main {
           return
         }
         include_pr_curves = true
+        index += 1
+      }
+      "--timings" => {
+        if show_timings {
+          fail_command("--timings may only be given once", 2)
+          return
+        }
+        show_timings = true
         index += 1
       }
       "--fail-on-warning" => {
@@ -197,6 +206,7 @@ async fn main {
     None => ()
   }
   let sources : Array[String] = []
+  let input_timer = @bench.monotonic_clock_start()
   let mut input_bytes = 0L
   let input_paths = [arguments[1], arguments[2]]
   match comparison_path {
@@ -291,7 +301,15 @@ async fn main {
     )
     return
   }
-  let (report_json, actual_ap50, warning_count, summary_line) = try {
+  let input_us = @bench.monotonic_clock_end(input_timer)
+  let (
+    report_json,
+    actual_ap50,
+    warning_count,
+    summary_line,
+    evaluation_us,
+    serialization_us,
+  ) = try {
     match comparison_predictions {
       Some(other) => {
         let config = @moondeteval.EvalConfig::new(
@@ -300,9 +318,11 @@ async fn main {
           include_image_summaries~,
           include_pr_curves~,
         )
+        let evaluation_timer = @bench.monotonic_clock_start()
         let comparison = @moondeteval.compare_predictions_with_config(
           dataset, predictions, other, config,
         )
+        let evaluation_us = @bench.monotonic_clock_end(evaluation_timer)
         let baseline = comparison.baseline()
         let candidate = comparison.candidate()
         let mut warning_count = baseline.quality_warnings().length()
@@ -311,11 +331,16 @@ async fn main {
             warning_count += 1
           }
         }
+        let serialization_timer = @bench.monotonic_clock_start()
+        let report_json = comparison.to_json_string()
+        let serialization_us = @bench.monotonic_clock_end(serialization_timer)
         (
-          comparison.to_json_string(),
+          report_json,
           candidate.summary().ap50(),
           warning_count,
           "baseline AP50=\{baseline.summary().ap50()} candidate AP50=\{candidate.summary().ap50()}\n",
+          evaluation_us,
+          serialization_us,
         )
       }
       None => {
@@ -325,14 +350,21 @@ async fn main {
           include_image_summaries~,
           include_pr_curves~,
         )
+        let evaluation_timer = @bench.monotonic_clock_start()
         let report = @moondeteval.evaluate_with_config(
           dataset, predictions, config,
         )
+        let evaluation_us = @bench.monotonic_clock_end(evaluation_timer)
+        let serialization_timer = @bench.monotonic_clock_start()
+        let report_json = report.to_json_string()
+        let serialization_us = @bench.monotonic_clock_end(serialization_timer)
         (
-          report.to_json_string(),
+          report_json,
           report.summary().ap50(),
           report.quality_warnings().length(),
           "AP=\{report.summary().ap()} AP50=\{report.summary().ap50()} AR100=\{report.summary().ar100()}\n",
+          evaluation_us,
+          serialization_us,
         )
       }
     }
@@ -342,6 +374,7 @@ async fn main {
       return
     }
   }
+  let output_timer = @bench.monotonic_clock_start()
   let output = report_json + "\n"
   if output.length() > max_report_bytes {
     fail_command("report exceeds --max-report-bytes \{max_report_bytes}", 2)
@@ -377,6 +410,12 @@ async fn main {
       @stdio.stdout.write(summary_line)
     }
     None => @stdio.stdout.write(output)
+  }
+  if show_timings {
+    let output_us = @bench.monotonic_clock_end(output_timer)
+    @stdio.stderr.write(
+      "timings_us input=\{input_us} evaluation=\{evaluation_us} serialization=\{serialization_us} output=\{output_us}\n",
+    )
   }
   match minimum_ap50 {
     Some(minimum) =>

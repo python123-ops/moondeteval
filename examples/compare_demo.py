@@ -106,6 +106,13 @@ def main():
 
         compact = run()
         assert compact.returncode == 0, compact.stderr
+        timed = run("--timings")
+        assert timed.returncode == 0, timed.stderr
+        assert timed.stdout == compact.stdout
+        assert "timings_us input=" in timed.stderr
+        assert "evaluation=" in timed.stderr and "serialization=" in timed.stderr
+        repeated_timings = run("--timings", "--timings")
+        assert repeated_timings.returncode == 2
         exact_bytes = len(compact.stdout.encode("utf-8"))
         assert run("--max-report-bytes", str(exact_bytes)).returncode == 0
         assert run("--max-report-bytes", str(exact_bytes - 1)).returncode == 2
