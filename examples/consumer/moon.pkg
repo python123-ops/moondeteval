@@ -1,4 +1,6 @@
 import {
   "python123-ops/moondeteval",
   "python123-ops/mbmot",
+  "python123-ops/moon-cv-geometry/core" @geometry,
+  "python123-ops/moon-cv-geometry/multiview",
 }

@@ -3,11 +3,17 @@ package "local/consumer"
 
 import {
   "python123-ops/mbmot",
+  "python123-ops/moon-cv-geometry/core",
+  "python123-ops/moon-cv-geometry/multiview",
   "python123-ops/moondeteval",
 }
 
 // Values
 pub fn adapt_mbmot_frame(Int, Int, Array[@mbmot.Detection]) -> Array[@moondeteval.Detection] raise @moondeteval.EvalError
+
+pub fn geometry_rect_to_box(@core.Rect2) -> @moondeteval.Box raise @moondeteval.EvalError
+
+pub fn warp_geometry_rect_to_box(@core.Rect2, @multiview.Homography) -> @moondeteval.Box raise @moondeteval.EvalError
 
 // Errors
 

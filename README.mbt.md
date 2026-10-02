@@ -119,6 +119,8 @@ The public API also supports `Image::new`, `Category::new`, `Box::from_xywh`, `G
 
 The [independent consumer](https://github.com/python123-ops/moondeteval/blob/main/examples/consumer/consumer_test.mbt) is a separate MoonBit module linked to this checkout by its `moon.work` file. It checks the public API and includes a [small MBMOT detector adapter](https://github.com/python123-ops/moondeteval/blob/main/examples/consumer/mbmot_adapter.mbt): MBMOT detection boxes, scores, and class IDs become MoonDetEval predictions for a supplied image ID. Tracking IDs and MOT metrics are deliberately not involved. Run `moon test --target all --deny-warn` from `examples/consumer` to verify it. This is local workspace validation; installation of a published MoonDetEval version remains a separate release check.
 
+The same consumer also imports the August [moon-cv-geometry](https://github.com/python123-ops/moon-cv-geometry) package at version `0.2.2`. Its [geometry adapter](examples/consumer/geometry_adapter.mbt) converts a `Rect2` to a validated MoonDetEval `Box`, or maps four corners through a homography and evaluates the target-image envelope. The integration test gets AP50 `1` for a known transform and rejects a projective horizon crossing or zero-area rectangle. No geometry dependency is added to the MoonDetEval library; applications opt into the bridge when they need cross-view coordinates. The geometry repository's `examples/detection_bounds` independently shows the source side of the workflow.
+
 ## Verify
 
 ```sh
