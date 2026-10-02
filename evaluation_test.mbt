@@ -628,3 +628,129 @@ test "COCO recall grid rounds 70 percent like the reference implementation" {
   assert_eq(curve.precision()[70], 0.0)
   assert_true(curve.ap() > 0.693069 && curve.ap() < 0.693070)
 }
+
+///|
+test "empty categories and crowd-only truths have undefined metrics" {
+  let image = @moondeteval.Image::new(3, 100, 100)
+  let empty = @moondeteval.Dataset::new([image], [], [])
+  let empty_report = @moondeteval.evaluate_with_config(
+    empty,
+    [],
+    @moondeteval.EvalConfig::new(
+      [0.5],
+      include_image_summaries=true,
+      include_pr_curves=true,
+    ),
+  )
+  assert_eq(empty_report.summary().ap50(), -1.0)
+  assert_eq(empty_report.summary().ar100(), -1.0)
+  assert_eq(empty_report.classes().length(), 0)
+  assert_eq(empty_report.pr_curves().length(), 0)
+  assert_eq(empty_report.image_summaries()[0].image_id(), 3)
+  let crowd = @moondeteval.Box::from_xywh(0.0, 0.0, 40.0, 40.0)
+  let inside = @moondeteval.Box::from_xywh(5.0, 5.0, 10.0, 10.0)
+  let dataset = @moondeteval.Dataset::new(
+    [image],
+    [@moondeteval.Category::new(8, "crowd")],
+    [@moondeteval.GroundTruth::new(99, 3, 8, crowd, area=1600.0, iscrowd=true)],
+  )
+  let report = @moondeteval.evaluate_with_config(
+    dataset,
+    [
+      @moondeteval.Detection::new(1, 3, 8, inside, 0.9),
+      @moondeteval.Detection::new(2, 3, 8, inside, 0.8),
+    ],
+    @moondeteval.EvalConfig::new(
+      [0.5],
+      include_diagnostics=true,
+      include_image_summaries=true,
+      include_pr_curves=true,
+    ),
+  )
+  assert_eq(report.summary().ap50(), -1.0)
+  assert_eq(report.classes()[0].metrics().ap50(), -1.0)
+  assert_eq(report.diagnostics().length(), 2)
+  assert_eq(report.diagnostics()[0].status(), "ignored")
+  assert_eq(report.diagnostics()[1].status(), "ignored")
+  assert_eq(report.diagnostics()[0].ground_truth_id(), Some(99L))
+  assert_eq(report.diagnostics()[1].ground_truth_id(), Some(99L))
+  assert_eq(report.image_summaries()[0].ignored(), 2)
+  assert_eq(report.pr_curves()[0].precision()[100], -1.0)
+}
+
+///|
+test "regular truth wins over overlapping crowd and report arrays keep declared order" {
+  let box = @moondeteval.Box::from_xywh(0.0, 0.0, 20.0, 20.0)
+  let dataset = @moondeteval.Dataset::new(
+    [@moondeteval.Image::new(2, 30, 30), @moondeteval.Image::new(1, 30, 30)],
+    [
+      @moondeteval.Category::new(9, "first"),
+      @moondeteval.Category::new(3, "second"),
+    ],
+    [
+      @moondeteval.GroundTruth::new(1, 1, 9, box, area=400.0),
+      @moondeteval.GroundTruth::new(2, 1, 9, box, area=400.0, iscrowd=true),
+    ],
+  )
+  let predictions = [
+    @moondeteval.Detection::new(1, 1, 9, box, 0.9),
+    @moondeteval.Detection::new(2, 1, 9, box, 0.8),
+  ]
+  let plain = @moondeteval.evaluate(dataset, predictions)
+  let full = @moondeteval.evaluate_with_config(
+    dataset,
+    predictions,
+    @moondeteval.EvalConfig::new(
+      [0.5, 0.75],
+      include_diagnostics=true,
+      include_image_summaries=true,
+      include_pr_curves=true,
+    ),
+  )
+  assert_eq(plain.summary().ap50(), full.summary().ap50())
+  assert_eq(full.summary().ap50(), 1.0)
+  assert_eq(full.diagnostics()[0].status(), "tp")
+  assert_eq(full.diagnostics()[0].ground_truth_id(), Some(1L))
+  assert_eq(full.diagnostics()[1].status(), "ignored")
+  assert_eq(full.diagnostics()[1].ground_truth_id(), Some(2L))
+  assert_eq(full.classes()[0].category_id(), 9)
+  assert_eq(full.classes()[1].category_id(), 3)
+  assert_eq(full.image_summaries()[0].image_id(), 1)
+  assert_eq(full.image_summaries()[1].image_id(), 2)
+  assert_eq(full.pr_curves()[0].category_id(), 9)
+  assert_eq(full.pr_curves()[1].iou_threshold(), 0.75)
+  assert_eq(full.pr_curves()[2].category_id(), 3)
+}
+
+///|
+test "equal-score rank 101 is excluded only within its image and category" {
+  let box = @moondeteval.Box::from_xywh(0.0, 0.0, 10.0, 10.0)
+  let far = @moondeteval.Box::from_xywh(50.0, 50.0, 10.0, 10.0)
+  let dataset = @moondeteval.Dataset::new(
+    [@moondeteval.Image::new(2, 100, 100), @moondeteval.Image::new(1, 100, 100)],
+    [@moondeteval.Category::new(5, "a"), @moondeteval.Category::new(6, "b")],
+    [
+      @moondeteval.GroundTruth::new(1, 1, 5, box, area=100.0),
+      @moondeteval.GroundTruth::new(2, 2, 5, box, area=100.0),
+      @moondeteval.GroundTruth::new(3, 1, 6, box, area=100.0),
+    ],
+  )
+  let predictions : Array[@moondeteval.Detection] = []
+  for index in 0..<99 {
+    predictions.push(@moondeteval.Detection::new(index, 1, 5, far, 0.5))
+  }
+  predictions.push(@moondeteval.Detection::new(99, 1, 5, box, 0.5))
+  predictions.push(@moondeteval.Detection::new(100, 1, 5, box, 0.5))
+  predictions.push(@moondeteval.Detection::new(101, 2, 5, box, 0.5))
+  predictions.push(@moondeteval.Detection::new(102, 1, 6, box, 0.5))
+  let report = @moondeteval.evaluate_with_config(
+    dataset,
+    predictions,
+    @moondeteval.EvalConfig::new([0.5], include_image_summaries=true),
+  )
+  assert_eq(report.counts().detections(), 103)
+  assert_eq(report.counts().evaluated_detections(), 102)
+  assert_eq(report.image_summaries()[0].tp(), 2)
+  assert_eq(report.image_summaries()[0].fp(), 99)
+  assert_eq(report.image_summaries()[1].tp(), 1)
+}

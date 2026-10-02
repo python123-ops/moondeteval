@@ -89,3 +89,135 @@ test "COCO annotation IDs reject numbers outside signed 64-bit range" {
     _ => fail("out-of-range annotation id accepted")
   }
 }
+
+///|
+test "COCO JSON errors locate typed fields and duplicate or unknown references" {
+  let prefix = "{\"images\":[{\"id\":1,\"width\":20,\"height\":20}],\"categories\":[{\"id\":2,\"name\":\"box\"}],\"annotations\":["
+  let suffix = "]}"
+  let valid = "{\"id\":1,\"image_id\":1,\"category_id\":2,\"bbox\":[0,0,10,10],\"area\":100}"
+  let bad_image = "{\"id\":2,\"image_id\":9,\"category_id\":2,\"bbox\":[0,0,10,10],\"area\":100}"
+  try
+    @moondeteval.parse_coco_dataset(prefix + valid + "," + bad_image + suffix)
+  catch {
+    @moondeteval.InvalidInput(message) =>
+      assert_true(message.contains("annotations[1].image_id"))
+    _ => fail("wrong error")
+  } noraise {
+    _ => fail("unknown image accepted")
+  }
+  try
+    @moondeteval.parse_coco_dataset(prefix + valid + "," + valid + suffix)
+  catch {
+    @moondeteval.InvalidInput(message) =>
+      assert_true(message.contains("annotations[1].id"))
+    _ => fail("wrong error")
+  } noraise {
+    _ => fail("duplicate truth accepted")
+  }
+  try
+    @moondeteval.parse_coco_detections(
+      "[{\"image_id\":1,\"category_id\":2,\"bbox\":[0,0,10,10],\"score\":\"bad\"}]",
+    )
+  catch {
+    @moondeteval.InvalidInput(message) =>
+      assert_true(
+        message.contains("detections[0]") && message.contains("score"),
+      )
+    _ => fail("wrong error")
+  } noraise {
+    _ => fail("invalid score accepted")
+  }
+  try
+    @moondeteval.parse_coco_dataset(
+      prefix +
+      "{\"id\":1.5,\"image_id\":1,\"category_id\":2,\"bbox\":[0,0,10,10],\"area\":100}" +
+      suffix,
+    )
+  catch {
+    @moondeteval.InvalidInput(message) =>
+      assert_true(message.contains("annotations[0].id"))
+    _ => fail("wrong error")
+  } noraise {
+    _ => fail("fractional truth ID accepted")
+  }
+}
+
+///|
+test "COCO JSON rejects invalid crowd and ignore flags and truncated input" {
+  let prefix = "{\"images\":[{\"id\":1,\"width\":20,\"height\":20}],\"categories\":[{\"id\":2,\"name\":\"box\"}],\"annotations\":[{\"id\":1,\"image_id\":1,\"category_id\":2,\"bbox\":[0,0,10,10],\"area\":100,"
+  for (field, value) in [("iscrowd", "2"), ("ignore", "\"yes\"")] {
+    try
+      @moondeteval.parse_coco_dataset(
+        prefix + "\"" + field + "\":" + value + "}]}",
+      )
+    catch {
+      @moondeteval.InvalidInput(message) =>
+        assert_true(message.contains("annotations[0]." + field))
+      _ => fail("wrong error")
+    } noraise {
+      _ => fail("invalid flag accepted")
+    }
+  }
+  try @moondeteval.parse_coco_dataset("{\"images\":[") catch {
+    @moondeteval.InvalidInput(message) =>
+      assert_true(message.contains("not valid JSON"))
+    _ => fail("wrong error")
+  } noraise {
+    _ => fail("truncated input accepted")
+  }
+}
+
+///|
+test "COCO annotation IDs keep both signed 64-bit endpoints" {
+  let dataset = @moondeteval.parse_coco_dataset(
+    "{\"images\":[{\"id\":1,\"width\":20,\"height\":20}],\"categories\":[{\"id\":1,\"name\":\"box\"}],\"annotations\":[{\"id\":-9223372036854775808,\"image_id\":1,\"category_id\":1,\"bbox\":[0,0,10,10],\"area\":100},{\"id\":9223372036854775807,\"image_id\":1,\"category_id\":1,\"bbox\":[0,0,10,10],\"area\":100}]}",
+  )
+  assert_eq(dataset.truths()[0].id().to_string(), "-9223372036854775808")
+  assert_eq(dataset.truths()[1].id().to_string(), "9223372036854775807")
+  let report = @moondeteval.evaluate_with_diagnostics(dataset, [])
+  assert_true(
+    report.to_json_string().contains("\"ground_truth_id\":-9223372036854775808"),
+  )
+  assert_true(
+    report.to_json_string().contains("\"ground_truth_id\":9223372036854775807"),
+  )
+}
+
+///|
+test "COCO JSON locates missing prediction fields and duplicate declarations" {
+  try
+    @moondeteval.parse_coco_detections(
+      "[{\"image_id\":1,\"category_id\":2,\"bbox\":[0,0,1,1]}]",
+    )
+  catch {
+    @moondeteval.InvalidInput(message) =>
+      assert_true(
+        message.contains("detections[0]") && message.contains("score"),
+      )
+    _ => fail("wrong error")
+  } noraise {
+    _ => fail("missing score accepted")
+  }
+  try
+    @moondeteval.parse_coco_dataset(
+      "{\"images\":[{\"id\":1,\"width\":20,\"height\":20},{\"id\":1,\"width\":20,\"height\":20}],\"categories\":[],\"annotations\":[]}",
+    )
+  catch {
+    @moondeteval.InvalidInput(message) =>
+      assert_true(message.contains("images[1].id"))
+    _ => fail("wrong error")
+  } noraise {
+    _ => fail("duplicate image accepted")
+  }
+  try
+    @moondeteval.parse_coco_dataset(
+      "{\"images\":[],\"categories\":[{\"id\":1,\"name\":\"box\"},{\"id\":1,\"name\":\"box\"}],\"annotations\":[]}",
+    )
+  catch {
+    @moondeteval.InvalidInput(message) =>
+      assert_true(message.contains("categories[1].id"))
+    _ => fail("wrong error")
+  } noraise {
+    _ => fail("duplicate category accepted")
+  }
+}

@@ -83,37 +83,48 @@ pub fn parse_coco_dataset(source : String) -> Dataset raise EvalError {
     _ => raise InvalidInput("ground truth is not valid JSON")
   }
   let raw : CocoGroundTruthFile = @json.from_json(json) catch {
-    _ =>
+    error =>
       raise InvalidInput(
-        "ground truth needs images, categories, and annotations with valid field types",
+        "ground truth needs images, categories, and annotations with valid field types: " +
+        error.to_string(),
       )
   }
   let images : Array[Image] = []
   let categories : Array[Category] = []
   let truths : Array[GroundTruth] = []
+  let image_ids : Map[Int, Bool] = Map([])
+  let category_ids : Map[Int, Bool] = Map([])
+  let truth_ids : Map[Int64, Bool] = Map([])
   for index, entry in raw.images {
     let image : CocoImage = @json.from_json(entry) catch {
-      _ => raise InvalidInput("images[\{index}] has invalid or missing fields")
+      error => raise InvalidInput("images[\{index}]: " + error.to_string())
     }
     let item = Image::new(image.id, image.width, image.height) catch {
       error => raise InvalidInput("images[\{index}]: " + error.message())
     }
+    if image_ids.contains(item.id()) {
+      raise InvalidInput("images[\{index}].id duplicates \{item.id()}")
+    }
+    image_ids[item.id()] = true
     images.push(item)
   }
   for index, entry in raw.categories {
     let category : CocoCategory = @json.from_json(entry) catch {
-      _ =>
-        raise InvalidInput("categories[\{index}] has invalid or missing fields")
+      error => raise InvalidInput("categories[\{index}]: " + error.to_string())
     }
     let item = Category::new(category.id, category.name) catch {
       error => raise InvalidInput("categories[\{index}]: " + error.message())
     }
+    if category_ids.contains(item.id()) {
+      raise InvalidInput("categories[\{index}].id duplicates \{item.id()}")
+    }
+    category_ids[item.id()] = true
     categories.push(item)
   }
   for index, entry in raw.annotations {
     let location = "annotations[\{index}]"
     let annotation : CocoAnnotation = @json.from_json(entry) catch {
-      _ => raise InvalidInput(location + " has invalid or missing fields")
+      error => raise InvalidInput(location + ": " + error.to_string())
     }
     let bbox = parse_box(annotation.bbox, location)
     let item = GroundTruth::new(
@@ -127,6 +138,21 @@ pub fn parse_coco_dataset(source : String) -> Dataset raise EvalError {
     ) catch {
       error => raise InvalidInput(location + ": " + error.message())
     }
+    if truth_ids.contains(item.id()) {
+      raise InvalidInput(location + ".id duplicates \{item.id()}")
+    }
+    if !image_ids.contains(item.image_id()) {
+      raise InvalidInput(
+        location + ".image_id references unknown image \{item.image_id()}",
+      )
+    }
+    if !category_ids.contains(item.category_id()) {
+      raise InvalidInput(
+        location +
+        ".category_id references unknown category \{item.category_id()}",
+      )
+    }
+    truth_ids[item.id()] = true
     truths.push(item)
   }
   Dataset::new(images, categories, truths)
@@ -141,16 +167,17 @@ pub fn parse_coco_detections(
     _ => raise InvalidInput("detections are not valid JSON")
   }
   let raw : Array[Json] = @json.from_json(json) catch {
-    _ =>
+    error =>
       raise InvalidInput(
-        "detections must be an array of image_id, category_id, bbox, and score records",
+        "detections must be an array of image_id, category_id, bbox, and score records: " +
+        error.to_string(),
       )
   }
   let predictions : Array[Detection] = []
   for index, entry in raw {
     let location = "detections[\{index}]"
     let prediction : CocoPrediction = @json.from_json(entry) catch {
-      _ => raise InvalidInput(location + " has invalid or missing fields")
+      error => raise InvalidInput(location + ": " + error.to_string())
     }
     let bbox = parse_box(prediction.bbox, location)
     let item = Detection::new(

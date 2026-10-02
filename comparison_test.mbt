@@ -26,6 +26,14 @@ test "paired comparison reports twelve deltas and undefined class values" {
   assert_eq(result.baseline().summary().ap50(), 1.0)
   assert_eq(result.candidate().summary().ap50(), 0.5)
   assert_eq(result.metrics().length(), 12)
+  let names = [
+    "ap", "ap50", "ap75", "ap_small", "ap_medium", "ap_large", "ar1", "ar10", "ar100",
+    "ar_small", "ar_medium", "ar_large",
+  ]
+  for index in 0..<names.length() {
+    assert_eq(result.metrics()[index].name(), names[index])
+    assert_eq(result.classes()[0].metrics()[index].name(), names[index])
+  }
   assert_eq(result.metrics()[1].name(), "ap50")
   assert_eq(result.metrics()[1].baseline(), Some(1.0))
   assert_eq(result.metrics()[1].candidate(), Some(0.5))
@@ -40,6 +48,7 @@ test "paired comparison reports twelve deltas and undefined class values" {
   assert_eq(result.candidate().pr_curves()[0].ap(), 0.5)
   assert_eq(result.candidate().pr_curves()[2].ap(), -1.0)
   assert_true(result.to_json_string().contains("\"delta\":null"))
+  assert_true(result.to_json_string().contains("\"schema_version\":\"0.1.0\""))
 }
 
 ///|

@@ -125,6 +125,19 @@ def main():
         )
         assert run("--max-records", str(records)).returncode == 0
         assert run("--max-records", str(records - 1)).returncode == 2
+        largest_input = max(path.stat().st_size for path in (GROUND_TRUTH, BASELINE, CANDIDATE))
+        total_input = sum(path.stat().st_size for path in (GROUND_TRUTH, BASELINE, CANDIDATE))
+        assert run("--max-input-bytes", str(largest_input)).returncode == 0
+        assert run("--max-input-bytes", str(largest_input - 1)).returncode == 2
+        assert run("--max-total-input-bytes", str(total_input)).returncode == 0
+        assert run("--max-total-input-bytes", str(total_input - 1)).returncode == 2
+        diagnostic_bound = 10 * (
+            report["baseline"]["counts"]["detections"]
+            + report["candidate"]["counts"]["detections"]
+            + 2 * report["baseline"]["counts"]["ground_truths"]
+        )
+        assert run("--diagnostics", "--max-diagnostics", str(diagnostic_bound)).returncode == 0
+        assert run("--diagnostics", "--max-diagnostics", str(diagnostic_bound - 1)).returncode == 2
         curve_limit = len(compact.stdout) + 10
         curves_path = directory / "oversized-curves.json"
         oversized_curves = run(
@@ -138,6 +151,45 @@ def main():
         reused_path = run("--output", str(CANDIDATE))
         assert reused_path.returncode == 2
         assert "output path must differ" in reused_path.stderr
+        for input_path in (GROUND_TRUTH, BASELINE):
+            reused = run("--output", str(input_path))
+            assert reused.returncode == 2 and "output path must differ" in reused.stderr
+
+        existing = directory / "existing.json"
+        existing.write_bytes(b"keep original bytes")
+        assert run("--output", str(existing)).returncode == 2
+        assert existing.read_bytes() == b"keep original bytes"
+        target = directory / "target.json"
+        temporary = directory / "target.json.moondeteval.tmp"
+        temporary.write_bytes(b"keep temporary bytes")
+        collision = run("--output", str(target))
+        assert collision.returncode == 2 and "temporary output" in collision.stderr
+        assert temporary.read_bytes() == b"keep temporary bytes"
+        assert not target.exists()
+
+        malformed = directory / "malformed.json"
+        malformed.write_text('[{"image_id":', encoding="utf-8")
+        bad_output = directory / "bad-output.json"
+        bad = subprocess.run(
+            ["moon", "run", "cli", "--target", "native", "--", str(GROUND_TRUTH),
+             str(malformed), "--output", str(bad_output)],
+            cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
+        )
+        assert bad.returncode == 2 and "not valid JSON" in bad.stderr
+        assert not bad_output.exists()
+        for field, unknown in (("image_id", 999), ("category_id", 999)):
+            invalid = directory / f"unknown-{field}.json"
+            rows = json.loads(BASELINE.read_text(encoding="utf-8"))
+            rows[0][field] = unknown
+            invalid.write_text(json.dumps(rows), encoding="utf-8")
+            result = subprocess.run(
+                ["moon", "run", "cli", "--target", "native", "--", str(GROUND_TRUTH),
+                 str(invalid), "--output", str(bad_output)],
+                cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
+            )
+            assert result.returncode == 2
+            assert str(invalid) in result.stderr and f"detections[0].{field}" in result.stderr
+            assert not bad_output.exists()
 
     print(f"AP50: baseline {ap50['baseline']}, candidate {ap50['candidate']}, delta {ap50['delta']}")
     for detection_id, reason in sorted(errors.items()):

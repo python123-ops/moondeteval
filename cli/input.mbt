@@ -81,6 +81,30 @@ async fn load_predictions(
           "detections " + path + ": " + error.message(),
         )
     }
+    let image_ids : Map[Int, Bool] = Map([])
+    let category_ids : Map[Int, Bool] = Map([])
+    for image in dataset.images() {
+      image_ids[image.id()] = true
+    }
+    for category in dataset.categories() {
+      category_ids[category.id()] = true
+    }
+    for index, detection in detections {
+      if !image_ids.contains(detection.image_id()) {
+        raise @moondeteval.InvalidInput(
+          "detections " +
+          path +
+          ": detections[\{index}].image_id references unknown image \{detection.image_id()}",
+        )
+      }
+      if !category_ids.contains(detection.category_id()) {
+        raise @moondeteval.InvalidInput(
+          "detections " +
+          path +
+          ": detections[\{index}].category_id references unknown category \{detection.category_id()}",
+        )
+      }
+    }
     return (detections, 0L)
   }
   let manifest = @moondeteval.parse_yolo_manifest(source, dataset) catch {
