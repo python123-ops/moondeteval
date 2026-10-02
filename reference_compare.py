@@ -33,7 +33,7 @@ def compare(name, ground_truth, detections, check_matches=True):
         dt_path.write_text(json.dumps(detections), encoding="utf-8")
         run = subprocess.run(
             ["moon", "run", "cli", "--target", "native", "--", str(gt_path), str(dt_path)]
-            + (["--diagnostics"] if check_matches else []),
+            + (["--diagnostics"] if check_matches else []) + ["--pr-curves"],
             cwd=ROOT,
             capture_output=True,
             text=True,
@@ -66,10 +66,47 @@ def compare(name, ground_truth, detections, check_matches=True):
             raise AssertionError(
                 f"{name}: {metric}: MoonDetEval={actual[metric]}, pycocotools={expected}"
             )
+    check_exported_curves(name, report, evaluator)
     if check_matches:
         check_image_matches(name, report["diagnostics"], evaluator)
         check_precision_recall(name, report["diagnostics"], detections, evaluator)
-    print(f"{name}: all {len(METRICS)} summary metrics match (absolute tolerance 1e-9)")
+    print(f"{name}: {len(METRICS)} metrics and exported PR curves match (absolute tolerance 1e-9)")
+
+
+def check_exported_curves(name, report, evaluator):
+    grid = report["recall_thresholds"]
+    assert len(grid) == 101, (name, len(grid))
+    for index, (actual, expected) in enumerate(zip(grid, evaluator.params.recThrs)):
+        assert math.isclose(actual, float(expected), abs_tol=1e-12), (
+            name, "recall grid", index, actual, expected
+        )
+    curves = report["pr_curves"]
+    assert len(curves) == len(evaluator.params.catIds) * len(evaluator.params.iouThrs)
+    by_key = {(curve["category_id"], round(curve["iou_threshold"], 2)): curve
+              for curve in curves}
+    assert len(by_key) == len(curves), name
+    for category_index, category_id in enumerate(evaluator.params.catIds):
+        for threshold_index, threshold in enumerate(evaluator.params.iouThrs):
+            curve = by_key[(category_id, round(float(threshold), 2))]
+            expected_precision = evaluator.eval["precision"][
+                threshold_index, :, category_index, 0, 2
+            ]
+            expected_recall = evaluator.eval["recall"][
+                threshold_index, category_index, 0, 2
+            ]
+            assert len(curve["precision"]) == 101
+            for sample, (actual, expected) in enumerate(
+                zip(curve["precision"], expected_precision)
+            ):
+                assert math.isclose(actual, float(expected), abs_tol=1e-9), (
+                    name, category_id, threshold, sample, actual, expected
+                )
+            assert math.isclose(curve["max_recall"], float(expected_recall), abs_tol=1e-9)
+            expected_ap = (-1.0 if expected_precision[0] < 0
+                           else float(expected_precision.mean()))
+            assert math.isclose(curve["ap"], expected_ap, abs_tol=1e-9), (
+                name, category_id, threshold, curve["ap"], expected_ap
+            )
 
 
 def check_image_matches(name, diagnostics, evaluator):

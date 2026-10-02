@@ -12,13 +12,14 @@ async fn main {
   let arguments = @env.args()
   if arguments.length() < 3 {
     fail_command(
-      "usage: moondeteval <ground-truth.json> <detections.json|manifest.json> [--prediction-format coco|yolo] [--compare OTHER.json] [--compare-format coco|yolo] [--diagnostics] [--image-ranking] [--min-ap50 N] [--fail-on-warning] [--output PATH] [--max-input-bytes N] [--max-total-input-bytes N] [--max-records N] [--max-diagnostics N] [--max-report-bytes N]",
+      "usage: moondeteval <ground-truth.json> <detections.json|manifest.json> [--prediction-format coco|yolo] [--compare OTHER.json] [--compare-format coco|yolo] [--diagnostics] [--image-ranking] [--pr-curves] [--min-ap50 N] [--fail-on-warning] [--output PATH] [--max-input-bytes N] [--max-total-input-bytes N] [--max-records N] [--max-diagnostics N] [--max-report-bytes N]",
       2,
     )
     return
   }
   let mut include_diagnostics = false
   let mut include_image_summaries = false
+  let mut include_pr_curves = false
   let mut fail_on_warning = false
   let mut comparison_path : String? = None
   let mut prediction_format = "coco"
@@ -49,6 +50,14 @@ async fn main {
           return
         }
         include_image_summaries = true
+        index += 1
+      }
+      "--pr-curves" => {
+        if include_pr_curves {
+          fail_command("--pr-curves may only be given once", 2)
+          return
+        }
+        include_pr_curves = true
         index += 1
       }
       "--fail-on-warning" => {
@@ -289,6 +298,7 @@ async fn main {
           @moondeteval.EvalConfig::coco().iou_thresholds(),
           include_diagnostics~,
           include_image_summaries~,
+          include_pr_curves~,
         )
         let comparison = @moondeteval.compare_predictions_with_config(
           dataset, predictions, other, config,
@@ -313,6 +323,7 @@ async fn main {
           @moondeteval.EvalConfig::coco().iou_thresholds(),
           include_diagnostics~,
           include_image_summaries~,
+          include_pr_curves~,
         )
         let report = @moondeteval.evaluate_with_config(
           dataset, predictions, config,

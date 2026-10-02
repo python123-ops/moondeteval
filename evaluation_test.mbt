@@ -312,6 +312,89 @@ test "image summaries exclude crowd matches and predictions after maxDets" {
 }
 
 ///|
+test "exported PR samples are the AP envelope and ignore crowd" {
+  let first = @moondeteval.Box::from_xywh(0.0, 0.0, 10.0, 10.0)
+  let second = @moondeteval.Box::from_xywh(20.0, 0.0, 10.0, 10.0)
+  let crowd = @moondeteval.Box::from_xywh(40.0, 0.0, 10.0, 10.0)
+  let far = @moondeteval.Box::from_xywh(60.0, 0.0, 10.0, 10.0)
+  let dataset = @moondeteval.Dataset::new(
+    [@moondeteval.Image::new(1, 100, 100)],
+    [
+      @moondeteval.Category::new(1, "present"),
+      @moondeteval.Category::new(2, "absent"),
+    ],
+    [
+      @moondeteval.GroundTruth::new(1, 1, 1, first, area=100.0),
+      @moondeteval.GroundTruth::new(2, 1, 1, second, area=100.0),
+      @moondeteval.GroundTruth::new(3, 1, 1, crowd, area=100.0, iscrowd=true),
+    ],
+  )
+  let predictions = [
+    @moondeteval.Detection::new(1, 1, 1, far, 0.9),
+    @moondeteval.Detection::new(2, 1, 1, first, 0.8),
+    @moondeteval.Detection::new(3, 1, 1, crowd, 0.7),
+    @moondeteval.Detection::new(4, 1, 1, second, 0.6),
+  ]
+  let plain = @moondeteval.evaluate(dataset, predictions)
+  let config = @moondeteval.EvalConfig::new([0.5, 0.75], include_pr_curves=true)
+  let report = @moondeteval.evaluate_with_config(dataset, predictions, config)
+  assert_eq(plain.summary().ap50(), report.summary().ap50())
+  let grid = report.recall_thresholds()
+  assert_eq(grid.length(), 101)
+  assert_eq(grid[0], 0.0)
+  assert_eq(grid[50], 0.5)
+  assert_eq(grid[100], 1.0)
+  let curves = report.pr_curves()
+  assert_eq(curves.length(), 4)
+  assert_eq(curves[0].category_id(), 1)
+  assert_eq(curves[0].iou_threshold(), 0.5)
+  assert_eq(curves[0].max_recall(), 1.0)
+  assert_eq(curves[0].precision().length(), 101)
+  for value in curves[0].precision() {
+    assert_true(value > 0.6666666 && value < 0.6666667)
+  }
+  assert_true(curves[0].ap() > 0.6666666 && curves[0].ap() < 0.6666667)
+  let changed = curves[0].precision()
+  changed[0] = 0.0
+  assert_true(report.pr_curves()[0].precision()[0] > 0.6666666)
+  assert_eq(curves[1].iou_threshold(), 0.75)
+  assert_eq(curves[2].category_id(), 2)
+  assert_eq(curves[2].ap(), -1.0)
+  assert_eq(curves[2].max_recall(), -1.0)
+  assert_eq(curves[2].precision().length(), 101)
+  assert_eq(curves[2].precision()[50], -1.0)
+}
+
+///|
+test "PR export keeps empty-prediction precision zero and custom threshold scope" {
+  let truth = @moondeteval.Box::from_xywh(0.0, 0.0, 10.0, 10.0)
+  let dataset = @moondeteval.Dataset::new(
+    [@moondeteval.Image::new(1, 20, 20)],
+    [@moondeteval.Category::new(1, "object")],
+    [@moondeteval.GroundTruth::new(1, 1, 1, truth, area=100.0)],
+  )
+  let report = @moondeteval.evaluate_with_config(
+    dataset,
+    [],
+    @moondeteval.EvalConfig::new([0.75], include_pr_curves=true),
+  )
+  assert_eq(report.pr_curves().length(), 1)
+  assert_eq(report.pr_curves()[0].iou_threshold(), 0.75)
+  assert_eq(report.pr_curves()[0].precision(), Array::make(101, 0.0))
+  assert_eq(report.pr_curves()[0].max_recall(), 0.0)
+  assert_eq(report.pr_curves()[0].ap(), 0.0)
+  let shifted = @moondeteval.Box::from_xywh(2.0, 0.0, 10.0, 10.0)
+  let partial = @moondeteval.evaluate_with_config(
+    dataset,
+    [@moondeteval.Detection::new(2, 1, 1, shifted, 0.9)],
+    @moondeteval.EvalConfig::new([0.75], include_pr_curves=true),
+  )
+  assert_eq(partial.summary().ap50(), 1.0)
+  assert_eq(partial.pr_curves()[0].ap(), 0.0)
+  assert_eq(@moondeteval.evaluate(dataset, []).pr_curves().length(), 0)
+}
+
+///|
 test "false-positive labels follow duplicate, wrong-class, localization, background priority" {
   let box = @moondeteval.Box::from_xywh(0.0, 0.0, 20.0, 20.0)
   let shifted = @moondeteval.Box::from_xywh(10.0, 0.0, 20.0, 20.0)

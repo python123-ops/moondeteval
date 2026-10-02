@@ -123,14 +123,16 @@ pub struct EvalConfig {
   iou_thresholds : Array[Double]
   include_diagnostics : Bool
   include_image_summaries : Bool
+  include_pr_curves : Bool
   ignore_policy : String
 } derive(ToJson)
 pub fn EvalConfig::coco() -> Self
 pub fn EvalConfig::ignore_policy(Self) -> String
 pub fn EvalConfig::include_diagnostics(Self) -> Bool
 pub fn EvalConfig::include_image_summaries(Self) -> Bool
+pub fn EvalConfig::include_pr_curves(Self) -> Bool
 pub fn EvalConfig::iou_thresholds(Self) -> Array[Double]
-pub fn EvalConfig::new(Array[Double], include_diagnostics? : Bool, ignore_policy? : String, include_image_summaries? : Bool) -> Self raise EvalError
+pub fn EvalConfig::new(Array[Double], include_diagnostics? : Bool, ignore_policy? : String, include_image_summaries? : Bool, include_pr_curves? : Bool) -> Self raise EvalError
 pub fn EvalConfig::to_json(Self) -> Json
 
 pub struct EvaluationReport {
@@ -142,6 +144,8 @@ pub struct EvaluationReport {
   classes : Array[ClassMetrics]
   diagnostics : Array[MatchDiagnostic]
   image_summaries : Array[ImageSummary]
+  recall_thresholds : Array[Double]
+  pr_curves : Array[PrecisionRecallCurve]
   quality_warnings : Array[QualityWarning]
 } derive(ToJson)
 pub fn EvaluationReport::classes(Self) -> Array[ClassMetrics]
@@ -150,7 +154,9 @@ pub fn EvaluationReport::counts(Self) -> InputCounts
 pub fn EvaluationReport::diagnostics(Self) -> Array[MatchDiagnostic]
 pub fn EvaluationReport::evaluator_version(Self) -> String
 pub fn EvaluationReport::image_summaries(Self) -> Array[ImageSummary]
+pub fn EvaluationReport::pr_curves(Self) -> Array[PrecisionRecallCurve]
 pub fn EvaluationReport::quality_warnings(Self) -> Array[QualityWarning]
+pub fn EvaluationReport::recall_thresholds(Self) -> Array[Double]
 pub fn EvaluationReport::summary(Self) -> Metrics
 pub fn EvaluationReport::to_json(Self) -> Json
 pub fn EvaluationReport::to_json_string(Self) -> String
@@ -290,6 +296,20 @@ pub fn Metrics::ar_medium(Self) -> Double
 pub fn Metrics::ar_small(Self) -> Double
 pub fn Metrics::to_json(Self) -> Json
 pub fn Metrics::to_repr(Self) -> @debug.Repr
+
+pub struct PrecisionRecallCurve {
+  category_id : Int
+  iou_threshold : Double
+  precision : Array[Double]
+  max_recall : Double
+  ap : Double
+} derive(ToJson)
+pub fn PrecisionRecallCurve::ap(Self) -> Double
+pub fn PrecisionRecallCurve::category_id(Self) -> Int
+pub fn PrecisionRecallCurve::iou_threshold(Self) -> Double
+pub fn PrecisionRecallCurve::max_recall(Self) -> Double
+pub fn PrecisionRecallCurve::precision(Self) -> Array[Double]
+pub fn PrecisionRecallCurve::to_json(Self) -> Json
 
 pub struct QualityWarning {
   source : String

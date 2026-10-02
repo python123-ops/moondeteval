@@ -34,12 +34,12 @@ def expect_failure(source, directory, *options, contains=None):
 
 
 def main():
-    coco = run(COCO, "--diagnostics", "--image-ranking")
-    yolo = run(MANIFEST, "--prediction-format", "yolo", "--diagnostics", "--image-ranking")
+    coco = run(COCO, "--diagnostics", "--image-ranking", "--pr-curves")
+    yolo = run(MANIFEST, "--prediction-format", "yolo", "--diagnostics", "--image-ranking", "--pr-curves")
     assert coco.returncode == yolo.returncode == 0, (coco.stderr, yolo.stderr)
     coco_report = json.loads(coco.stdout)
     yolo_report = json.loads(yolo.stdout)
-    for field in ("summary", "classes", "diagnostics", "image_summaries", "quality_warnings", "counts"):
+    for field in ("summary", "classes", "diagnostics", "image_summaries", "recall_thresholds", "pr_curves", "quality_warnings", "counts"):
         assert yolo_report[field] == coco_report[field], field
     assert len(yolo_report["summary"]) == 12
     assert yolo_report["summary"]["ap50"] == 0.5
@@ -50,7 +50,7 @@ def main():
         {"image_id": 12, "tp": 0, "fp": 0, "fn_count": 1, "ignored": 0},
     ]
 
-    mixed = run(COCO, "--compare", MANIFEST, "--compare-format", "yolo", "--diagnostics", "--image-ranking")
+    mixed = run(COCO, "--compare", MANIFEST, "--compare-format", "yolo", "--diagnostics", "--image-ranking", "--pr-curves")
     assert mixed.returncode == 0, mixed.stderr
     comparison = json.loads(mixed.stdout)
     assert comparison["baseline"] == comparison["candidate"] == coco_report
@@ -156,7 +156,7 @@ def main():
         warning_report = json.loads(warning_path.read_text(encoding="utf-8"))
         assert warning_report["quality_warnings"][0]["record_id"] == 0
 
-    print("COCO and multi-image YOLO: all 12 summary metrics, classes and diagnostics identical")
+    print("COCO and multi-image YOLO: metrics, diagnostics and PR curves identical")
     print("Mixed-format comparison: 12 zero/undefined deltas; AP50=0.5")
     print("Malformed inputs and resource limits: exit 2 without an output; both gates: exit 3 with complete reports")
 

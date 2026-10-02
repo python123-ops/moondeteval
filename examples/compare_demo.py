@@ -23,7 +23,7 @@ def run(*options):
 
 
 def main():
-    result = run("--diagnostics", "--image-ranking")
+    result = run("--diagnostics", "--image-ranking", "--pr-curves")
     assert result.returncode == 0, result.stderr
     report = json.loads(result.stdout)
     ap50 = next(item for item in report["metrics"] if item["name"] == "ap50")
@@ -45,6 +45,16 @@ def main():
         {"image_id": 1, "baseline_errors": 0, "candidate_errors": 4,
          "error_delta": 4}
     ]
+    assert len(report["baseline"]["recall_thresholds"]) == 101
+    assert len(report["baseline"]["pr_curves"]) == 20
+    assert len(report["candidate"]["pr_curves"]) == 20
+    for side in ("baseline", "candidate"):
+        for curve in report[side]["pr_curves"]:
+            assert len(curve["precision"]) == 101
+            if curve["ap"] >= 0:
+                assert abs(sum(curve["precision"]) / 101 - curve["ap"]) < 1e-9
+    assert report["baseline"]["pr_curves"][0]["ap"] == 1
+    assert report["candidate"]["pr_curves"][0]["ap"] == 0
 
     with tempfile.TemporaryDirectory() as directory:
         directory = Path(directory)
@@ -89,6 +99,21 @@ def main():
         repeated = run("--image-ranking", "--image-ranking")
         assert repeated.returncode == 2
         assert "may only be given once" in repeated.stderr
+        repeated_curves = run("--pr-curves", "--pr-curves")
+        assert repeated_curves.returncode == 2
+        assert "may only be given once" in repeated_curves.stderr
+
+        compact = run()
+        assert compact.returncode == 0, compact.stderr
+        curve_limit = len(compact.stdout) + 10
+        curves_path = directory / "oversized-curves.json"
+        oversized_curves = run(
+            "--pr-curves", "--max-report-bytes", str(curve_limit),
+            "--output", str(curves_path),
+        )
+        assert oversized_curves.returncode == 2, oversized_curves.stderr
+        assert "report exceeds --max-report-bytes" in oversized_curves.stderr
+        assert not curves_path.exists()
 
         reused_path = run("--output", str(CANDIDATE))
         assert reused_path.returncode == 2
@@ -98,6 +123,7 @@ def main():
     for detection_id, reason in sorted(errors.items()):
         print(f"candidate detection {detection_id}: {reason}")
     print("image 1: baseline errors 0, candidate errors 4, delta +4")
+    print("20 PR curves per detector, 101 samples each; AP equals the sample mean")
     print("AP50 and quality gates returned code 3 with complete reports")
 
 

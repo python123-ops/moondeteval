@@ -18,6 +18,7 @@ test "paired comparison reports twelve deltas and undefined class values" {
   let config = @moondeteval.EvalConfig::new(
     [0.5, 0.75],
     include_diagnostics=true,
+    include_pr_curves=true,
   )
   let result = @moondeteval.compare_predictions_with_config(
     dataset, baseline, candidate, config,
@@ -33,6 +34,11 @@ test "paired comparison reports twelve deltas and undefined class values" {
   assert_eq(result.classes()[1].metrics()[1].delta(), None)
   assert_eq(result.baseline().diagnostics()[0].status(), "tp")
   assert_eq(result.candidate().diagnostics()[0].status(), "fp")
+  assert_eq(result.baseline().pr_curves().length(), 4)
+  assert_eq(result.candidate().pr_curves().length(), 4)
+  assert_eq(result.baseline().pr_curves()[0].ap(), 1.0)
+  assert_eq(result.candidate().pr_curves()[0].ap(), 0.5)
+  assert_eq(result.candidate().pr_curves()[2].ap(), -1.0)
   assert_true(result.to_json_string().contains("\"delta\":null"))
 }
 

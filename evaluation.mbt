@@ -110,6 +110,8 @@ pub struct EvaluationReport {
   classes : Array[ClassMetrics]
   diagnostics : Array[MatchDiagnostic]
   image_summaries : Array[ImageSummary]
+  recall_thresholds : Array[Double]
+  pr_curves : Array[PrecisionRecallCurve]
   quality_warnings : Array[QualityWarning]
 } derive(ToJson)
 
@@ -277,6 +279,63 @@ pub fn EvaluationReport::image_summaries(
 }
 
 ///|
+/// A 101-point COCO precision envelope at one category and IoU threshold.
+/// A value of -1 means this category has no eligible ground truth.
+pub struct PrecisionRecallCurve {
+  category_id : Int
+  iou_threshold : Double
+  precision : Array[Double]
+  max_recall : Double
+  ap : Double
+} derive(ToJson)
+
+///|
+pub extend PrecisionRecallCurve with ToJson::{to_json}
+
+///|
+pub fn PrecisionRecallCurve::category_id(self : PrecisionRecallCurve) -> Int {
+  self.category_id
+}
+
+///|
+pub fn PrecisionRecallCurve::iou_threshold(
+  self : PrecisionRecallCurve,
+) -> Double {
+  self.iou_threshold
+}
+
+///|
+pub fn PrecisionRecallCurve::precision(
+  self : PrecisionRecallCurve,
+) -> Array[Double] {
+  self.precision.copy()
+}
+
+///|
+pub fn PrecisionRecallCurve::max_recall(self : PrecisionRecallCurve) -> Double {
+  self.max_recall
+}
+
+///|
+pub fn PrecisionRecallCurve::ap(self : PrecisionRecallCurve) -> Double {
+  self.ap
+}
+
+///|
+pub fn EvaluationReport::recall_thresholds(
+  self : EvaluationReport,
+) -> Array[Double] {
+  self.recall_thresholds.copy()
+}
+
+///|
+pub fn EvaluationReport::pr_curves(
+  self : EvaluationReport,
+) -> Array[PrecisionRecallCurve] {
+  self.pr_curves.copy()
+}
+
+///|
 /// One detection decision, or one unmatched eligible ground truth, at an IoU threshold.
 /// Diagnostics use the all-area range and maxDets=100.
 pub struct MatchDiagnostic {
@@ -347,6 +406,7 @@ pub struct EvalConfig {
   iou_thresholds : Array[Double]
   include_diagnostics : Bool
   include_image_summaries : Bool
+  include_pr_curves : Bool
   ignore_policy : String
 } derive(ToJson)
 
@@ -359,6 +419,7 @@ pub fn EvalConfig::new(
   include_diagnostics? : Bool = false,
   ignore_policy? : String = "coco_bbox",
   include_image_summaries? : Bool = false,
+  include_pr_curves? : Bool = false,
 ) -> EvalConfig raise EvalError {
   if iou_thresholds.is_empty() || iou_thresholds.length() > 100 {
     raise InvalidConfig("IoU thresholds must contain 1 to 100 values")
@@ -379,6 +440,7 @@ pub fn EvalConfig::new(
     iou_thresholds: iou_thresholds.copy(),
     include_diagnostics,
     include_image_summaries,
+    include_pr_curves,
     ignore_policy,
   }
 }
@@ -391,6 +453,7 @@ pub fn EvalConfig::coco() -> EvalConfig {
     ],
     include_diagnostics: false,
     include_image_summaries: false,
+    include_pr_curves: false,
     ignore_policy: "coco_bbox",
   }
 }
@@ -408,6 +471,11 @@ pub fn EvalConfig::include_diagnostics(self : EvalConfig) -> Bool {
 ///|
 pub fn EvalConfig::include_image_summaries(self : EvalConfig) -> Bool {
   self.include_image_summaries
+}
+
+///|
+pub fn EvalConfig::include_pr_curves(self : EvalConfig) -> Bool {
+  self.include_pr_curves
 }
 
 ///|
@@ -439,6 +507,7 @@ priv struct MatchRecord {
 priv struct CurveValue {
   ap : Double
   ar : Double
+  sampled_precision : Array[Double]
 }
 
 ///|
@@ -542,6 +611,7 @@ fn evaluate_curve(
   max_dets : Int,
   trace : Array[MatchDiagnostic]?,
   respect_explicit_ignore : Bool,
+  capture_samples? : Bool = false,
 ) -> CurveValue {
   let records : Array[MatchRecord] = []
   let mut positives = 0
@@ -715,7 +785,15 @@ fn evaluate_curve(
     }
   }
   if positives == 0 {
-    return { ap: -1.0, ar: -1.0, }
+    return {
+      ap: -1.0,
+      ar: -1.0,
+      sampled_precision: if capture_samples {
+        Array::make(101, -1.0)
+      } else {
+        []
+      },
+    }
   }
   records.sort_by(record_before)
   let mut tp = 0
@@ -742,16 +820,19 @@ fn evaluate_curve(
   }
   let mut ap = 0.0
   let mut index = 0
+  let sampled_precision : Array[Double] = []
   for sample in 0..<=100 {
     let target = sample.to_double() / 100.0
     while index < recall.length() && recall[index] < target {
       index += 1
     }
-    if index < precision.length() {
-      ap += precision[index]
+    let value = if index < precision.length() { precision[index] } else { 0.0 }
+    ap += value
+    if capture_samples {
+      sampled_precision.push(value)
     }
   }
-  { ap: ap / 101.0, ar, }
+  { ap: ap / 101.0, ar, sampled_precision, }
 }
 
 ///|
@@ -778,6 +859,7 @@ fn metrics_for_category(
   category_id : Int,
   thresholds : Array[Double],
   diagnostics : Array[MatchDiagnostic]?,
+  curves : Array[PrecisionRecallCurve]?,
   respect_explicit_ignore : Bool,
 ) -> Metrics {
   let all_ap : Array[Double] = []
@@ -794,11 +876,34 @@ fn metrics_for_category(
   let mut ap75 = -1.0
   let mut saw_ap50 = false
   let mut saw_ap75 = false
+  let capture_samples = match curves {
+    Some(_) => true
+    None => false
+  }
   for threshold in thresholds {
     let all = evaluate_curve(
-      dataset, detections, category_id, threshold, 0.0, 1.0e10, 100, diagnostics,
+      dataset,
+      detections,
+      category_id,
+      threshold,
+      0.0,
+      1.0e10,
+      100,
+      diagnostics,
       respect_explicit_ignore,
+      capture_samples~,
     )
+    match curves {
+      Some(entries) =>
+        entries.push({
+          category_id,
+          iou_threshold: threshold,
+          precision: all.sampled_precision,
+          max_recall: all.ar,
+          ap: all.ap,
+        })
+      None => ()
+    }
     all_ap.push(all.ap)
     all_ar100.push(all.ar)
     all_ar1.push(
@@ -937,6 +1042,7 @@ pub fn evaluate_with_diagnostics(
     iou_thresholds: default.iou_thresholds,
     include_diagnostics: true,
     include_image_summaries: false,
+    include_pr_curves: false,
     ignore_policy: default.ignore_policy,
   })
 }
@@ -1025,6 +1131,7 @@ fn evaluate_internal(
   let classes : Array[ClassMetrics] = []
   let diagnostics : Array[MatchDiagnostic] = []
   let image_trace : Array[MatchDiagnostic] = []
+  let pr_curves : Array[PrecisionRecallCurve] = []
   let ap : Array[Double] = []
   let ap50 : Array[Double] = []
   let ap75 : Array[Double] = []
@@ -1045,6 +1152,11 @@ fn evaluate_internal(
       config.iou_thresholds,
       if config.include_diagnostics {
         Some(diagnostics)
+      } else {
+        None
+      },
+      if config.include_pr_curves {
+        Some(pr_curves)
       } else {
         None
       },
@@ -1120,6 +1232,12 @@ fn evaluate_internal(
       }
     })
   }
+  let recall_thresholds : Array[Double] = []
+  if config.include_pr_curves {
+    for sample in 0..<=100 {
+      recall_thresholds.push(sample.to_double() / 100.0)
+    }
+  }
   {
     schema_version: "0.1.0",
     evaluator_version: "0.1.0",
@@ -1148,6 +1266,8 @@ fn evaluate_internal(
     classes,
     diagnostics,
     image_summaries,
+    recall_thresholds,
+    pr_curves,
     quality_warnings,
   }
 }
