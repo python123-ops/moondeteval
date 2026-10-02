@@ -250,6 +250,68 @@ test "evaluation configuration rejects empty and non-increasing thresholds" {
 }
 
 ///|
+test "image summaries use fixed IoU 0.50 and retain metric invariance" {
+  let truth = @moondeteval.Box::from_xywh(0.0, 0.0, 10.0, 10.0)
+  let shifted = @moondeteval.Box::from_xywh(2.0, 0.0, 10.0, 10.0)
+  let dataset = @moondeteval.Dataset::new(
+    [@moondeteval.Image::new(1, 30, 30)],
+    [@moondeteval.Category::new(1, "object")],
+    [@moondeteval.GroundTruth::new(1, 1, 1, truth, area=100.0)],
+  )
+  let predictions = [@moondeteval.Detection::new(1, 1, 1, shifted, 0.9)]
+  let plain = @moondeteval.evaluate_with_config(
+    dataset,
+    predictions,
+    @moondeteval.EvalConfig::new([0.75]),
+  )
+  let ranked = @moondeteval.evaluate_with_config(
+    dataset,
+    predictions,
+    @moondeteval.EvalConfig::new([0.75], include_image_summaries=true),
+  )
+  assert_eq(plain.summary().ap(), ranked.summary().ap())
+  assert_eq(plain.summary().ap50(), ranked.summary().ap50())
+  assert_eq(ranked.summary().ap(), 0.0)
+  assert_eq(ranked.summary().ap50(), 1.0)
+  assert_eq(ranked.image_summaries()[0].tp(), 1)
+  assert_eq(ranked.image_summaries()[0].fp(), 0)
+  assert_eq(ranked.image_summaries()[0].fn_count(), 0)
+}
+
+///|
+test "image summaries exclude crowd matches and predictions after maxDets" {
+  let truth = @moondeteval.Box::from_xywh(0.0, 0.0, 10.0, 10.0)
+  let crowd = @moondeteval.Box::from_xywh(20.0, 20.0, 20.0, 20.0)
+  let far = @moondeteval.Box::from_xywh(50.0, 50.0, 10.0, 10.0)
+  let dataset = @moondeteval.Dataset::new(
+    [@moondeteval.Image::new(1, 100, 100)],
+    [@moondeteval.Category::new(1, "object")],
+    [
+      @moondeteval.GroundTruth::new(1, 1, 1, truth, area=100.0),
+      @moondeteval.GroundTruth::new(2, 1, 1, crowd, area=400.0, iscrowd=true),
+    ],
+  )
+  let predictions : Array[@moondeteval.Detection] = [
+    @moondeteval.Detection::new(1, 1, 1, crowd, 1.0),
+  ]
+  for index in 0..<99 {
+    predictions.push(@moondeteval.Detection::new(index + 2, 1, 1, far, 0.9))
+  }
+  predictions.push(@moondeteval.Detection::new(101, 1, 1, truth, 0.1))
+  let report = @moondeteval.evaluate_with_config(
+    dataset,
+    predictions,
+    @moondeteval.EvalConfig::new([0.5], include_image_summaries=true),
+  )
+  let image = report.image_summaries()[0]
+  assert_eq(image.tp(), 0)
+  assert_eq(image.fp(), 99)
+  assert_eq(image.fn_count(), 1)
+  assert_eq(image.ignored(), 1)
+  assert_eq(report.counts().evaluated_detections(), 100)
+}
+
+///|
 test "false-positive labels follow duplicate, wrong-class, localization, background priority" {
   let box = @moondeteval.Box::from_xywh(0.0, 0.0, 20.0, 20.0)
   let shifted = @moondeteval.Box::from_xywh(10.0, 0.0, 20.0, 20.0)

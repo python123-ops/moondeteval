@@ -34,22 +34,28 @@ def expect_failure(source, directory, *options, contains=None):
 
 
 def main():
-    coco = run(COCO, "--diagnostics")
-    yolo = run(MANIFEST, "--prediction-format", "yolo", "--diagnostics")
+    coco = run(COCO, "--diagnostics", "--image-ranking")
+    yolo = run(MANIFEST, "--prediction-format", "yolo", "--diagnostics", "--image-ranking")
     assert coco.returncode == yolo.returncode == 0, (coco.stderr, yolo.stderr)
     coco_report = json.loads(coco.stdout)
     yolo_report = json.loads(yolo.stdout)
-    for field in ("summary", "classes", "diagnostics", "quality_warnings", "counts"):
+    for field in ("summary", "classes", "diagnostics", "image_summaries", "quality_warnings", "counts"):
         assert yolo_report[field] == coco_report[field], field
     assert len(yolo_report["summary"]) == 12
     assert yolo_report["summary"]["ap50"] == 0.5
     assert yolo_report["counts"]["detections"] == 1
     assert yolo_report["diagnostics"][0]["detection_id"] == 0
+    assert yolo_report["image_summaries"] == [
+        {"image_id": 9, "tp": 1, "fp": 0, "fn_count": 0, "ignored": 0},
+        {"image_id": 12, "tp": 0, "fp": 0, "fn_count": 1, "ignored": 0},
+    ]
 
-    mixed = run(COCO, "--compare", MANIFEST, "--compare-format", "yolo", "--diagnostics")
+    mixed = run(COCO, "--compare", MANIFEST, "--compare-format", "yolo", "--diagnostics", "--image-ranking")
     assert mixed.returncode == 0, mixed.stderr
     comparison = json.loads(mixed.stdout)
     assert comparison["baseline"] == comparison["candidate"] == coco_report
+    assert [item["image_id"] for item in comparison["image_changes"]] == [9, 12]
+    assert all(item["error_delta"] == 0 for item in comparison["image_changes"])
     assert len(comparison["metrics"]) == 12
     assert all(item["delta"] in (0, None) for item in comparison["metrics"])
     assert all(

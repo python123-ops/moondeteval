@@ -82,10 +82,12 @@ pub struct ComparisonReport {
   candidate : EvaluationReport
   metrics : Array[MetricChange]
   classes : Array[ClassComparison]
+  image_changes : Array[ImageChange]
 } derive(ToJson)
 pub fn ComparisonReport::baseline(Self) -> EvaluationReport
 pub fn ComparisonReport::candidate(Self) -> EvaluationReport
 pub fn ComparisonReport::classes(Self) -> Array[ClassComparison]
+pub fn ComparisonReport::image_changes(Self) -> Array[ImageChange]
 pub fn ComparisonReport::metrics(Self) -> Array[MetricChange]
 pub fn ComparisonReport::to_json(Self) -> Json
 pub fn ComparisonReport::to_json_string(Self) -> String
@@ -120,13 +122,15 @@ pub fn Detection::to_repr(Self) -> @debug.Repr
 pub struct EvalConfig {
   iou_thresholds : Array[Double]
   include_diagnostics : Bool
+  include_image_summaries : Bool
   ignore_policy : String
 } derive(ToJson)
 pub fn EvalConfig::coco() -> Self
 pub fn EvalConfig::ignore_policy(Self) -> String
 pub fn EvalConfig::include_diagnostics(Self) -> Bool
+pub fn EvalConfig::include_image_summaries(Self) -> Bool
 pub fn EvalConfig::iou_thresholds(Self) -> Array[Double]
-pub fn EvalConfig::new(Array[Double], include_diagnostics? : Bool, ignore_policy? : String) -> Self raise EvalError
+pub fn EvalConfig::new(Array[Double], include_diagnostics? : Bool, ignore_policy? : String, include_image_summaries? : Bool) -> Self raise EvalError
 pub fn EvalConfig::to_json(Self) -> Json
 
 pub struct EvaluationReport {
@@ -137,6 +141,7 @@ pub struct EvaluationReport {
   summary : Metrics
   classes : Array[ClassMetrics]
   diagnostics : Array[MatchDiagnostic]
+  image_summaries : Array[ImageSummary]
   quality_warnings : Array[QualityWarning]
 } derive(ToJson)
 pub fn EvaluationReport::classes(Self) -> Array[ClassMetrics]
@@ -144,6 +149,7 @@ pub fn EvaluationReport::config(Self) -> EvalConfig
 pub fn EvaluationReport::counts(Self) -> InputCounts
 pub fn EvaluationReport::diagnostics(Self) -> Array[MatchDiagnostic]
 pub fn EvaluationReport::evaluator_version(Self) -> String
+pub fn EvaluationReport::image_summaries(Self) -> Array[ImageSummary]
 pub fn EvaluationReport::quality_warnings(Self) -> Array[QualityWarning]
 pub fn EvaluationReport::summary(Self) -> Metrics
 pub fn EvaluationReport::to_json(Self) -> Json
@@ -182,6 +188,32 @@ pub fn Image::new(Int, Int, Int) -> Self raise EvalError
 pub fn Image::not_equal(Self, Self) -> Bool
 pub fn Image::to_repr(Self) -> @debug.Repr
 pub fn Image::width(Self) -> Int
+
+pub struct ImageChange {
+  image_id : Int
+  baseline_errors : Int
+  candidate_errors : Int
+  error_delta : Int
+} derive(ToJson)
+pub fn ImageChange::baseline_errors(Self) -> Int
+pub fn ImageChange::candidate_errors(Self) -> Int
+pub fn ImageChange::error_delta(Self) -> Int
+pub fn ImageChange::image_id(Self) -> Int
+pub fn ImageChange::to_json(Self) -> Json
+
+pub struct ImageSummary {
+  image_id : Int
+  tp : Int
+  fp : Int
+  fn_count : Int
+  ignored : Int
+} derive(ToJson)
+pub fn ImageSummary::fn_count(Self) -> Int
+pub fn ImageSummary::fp(Self) -> Int
+pub fn ImageSummary::ignored(Self) -> Int
+pub fn ImageSummary::image_id(Self) -> Int
+pub fn ImageSummary::to_json(Self) -> Json
+pub fn ImageSummary::tp(Self) -> Int
 
 pub struct InputCounts {
   images : Int

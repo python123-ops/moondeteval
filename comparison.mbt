@@ -76,7 +76,40 @@ pub struct ComparisonReport {
   candidate : EvaluationReport
   metrics : Array[MetricChange]
   classes : Array[ClassComparison]
+  image_changes : Array[ImageChange]
 } derive(ToJson)
+
+///|
+/// Candidate minus baseline non-ignored errors at IoU=0.50.
+pub struct ImageChange {
+  image_id : Int
+  baseline_errors : Int
+  candidate_errors : Int
+  error_delta : Int
+} derive(ToJson)
+
+///|
+pub extend ImageChange with ToJson::{to_json}
+
+///|
+pub fn ImageChange::image_id(self : ImageChange) -> Int {
+  self.image_id
+}
+
+///|
+pub fn ImageChange::baseline_errors(self : ImageChange) -> Int {
+  self.baseline_errors
+}
+
+///|
+pub fn ImageChange::candidate_errors(self : ImageChange) -> Int {
+  self.candidate_errors
+}
+
+///|
+pub fn ImageChange::error_delta(self : ImageChange) -> Int {
+  self.error_delta
+}
 
 ///|
 pub extend ComparisonReport with ToJson::{to_json}
@@ -108,6 +141,13 @@ pub fn ComparisonReport::classes(
   self : ComparisonReport,
 ) -> Array[ClassComparison] {
   self.classes.copy()
+}
+
+///|
+pub fn ComparisonReport::image_changes(
+  self : ComparisonReport,
+) -> Array[ImageChange] {
+  self.image_changes.copy()
 }
 
 ///|
@@ -186,11 +226,38 @@ pub fn compare_predictions_with_config(
       ),
     })
   }
+  let image_changes : Array[ImageChange] = []
+  for index in 0..<left.image_summaries.length() {
+    let baseline_image = left.image_summaries[index]
+    let candidate_image = right.image_summaries[index]
+    let baseline_errors = baseline_image.fp + baseline_image.fn_count
+    let candidate_errors = candidate_image.fp + candidate_image.fn_count
+    image_changes.push({
+      image_id: baseline_image.image_id,
+      baseline_errors,
+      candidate_errors,
+      error_delta: candidate_errors - baseline_errors,
+    })
+  }
+  image_changes.sort_by(fn(left, right) {
+    if left.error_delta > right.error_delta {
+      -1
+    } else if left.error_delta < right.error_delta {
+      1
+    } else if left.image_id < right.image_id {
+      -1
+    } else if left.image_id > right.image_id {
+      1
+    } else {
+      0
+    }
+  })
   {
     schema_version: "0.1.0",
     baseline: left,
     candidate: right,
     metrics: metric_changes(left.summary, right.summary),
     classes,
+    image_changes,
   }
 }

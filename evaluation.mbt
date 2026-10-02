@@ -109,6 +109,7 @@ pub struct EvaluationReport {
   summary : Metrics
   classes : Array[ClassMetrics]
   diagnostics : Array[MatchDiagnostic]
+  image_summaries : Array[ImageSummary]
   quality_warnings : Array[QualityWarning]
 } derive(ToJson)
 
@@ -231,6 +232,51 @@ pub fn EvaluationReport::classes(
 }
 
 ///|
+/// Per-image decisions at IoU=0.50, all areas, maxDets=100 per category.
+pub struct ImageSummary {
+  image_id : Int
+  tp : Int
+  fp : Int
+  fn_count : Int
+  ignored : Int
+} derive(ToJson)
+
+///|
+pub extend ImageSummary with ToJson::{to_json}
+
+///|
+pub fn ImageSummary::image_id(self : ImageSummary) -> Int {
+  self.image_id
+}
+
+///|
+pub fn ImageSummary::tp(self : ImageSummary) -> Int {
+  self.tp
+}
+
+///|
+pub fn ImageSummary::fp(self : ImageSummary) -> Int {
+  self.fp
+}
+
+///|
+pub fn ImageSummary::fn_count(self : ImageSummary) -> Int {
+  self.fn_count
+}
+
+///|
+pub fn ImageSummary::ignored(self : ImageSummary) -> Int {
+  self.ignored
+}
+
+///|
+pub fn EvaluationReport::image_summaries(
+  self : EvaluationReport,
+) -> Array[ImageSummary] {
+  self.image_summaries.copy()
+}
+
+///|
 /// One detection decision, or one unmatched eligible ground truth, at an IoU threshold.
 /// Diagnostics use the all-area range and maxDets=100.
 pub struct MatchDiagnostic {
@@ -300,6 +346,7 @@ pub fn EvaluationReport::diagnostics(
 pub struct EvalConfig {
   iou_thresholds : Array[Double]
   include_diagnostics : Bool
+  include_image_summaries : Bool
   ignore_policy : String
 } derive(ToJson)
 
@@ -311,6 +358,7 @@ pub fn EvalConfig::new(
   iou_thresholds : Array[Double],
   include_diagnostics? : Bool = false,
   ignore_policy? : String = "coco_bbox",
+  include_image_summaries? : Bool = false,
 ) -> EvalConfig raise EvalError {
   if iou_thresholds.is_empty() || iou_thresholds.length() > 100 {
     raise InvalidConfig("IoU thresholds must contain 1 to 100 values")
@@ -327,7 +375,12 @@ pub fn EvalConfig::new(
   if ignore_policy != "coco_bbox" && ignore_policy != "respect_explicit" {
     raise InvalidConfig("ignore_policy must be coco_bbox or respect_explicit")
   }
-  { iou_thresholds: iou_thresholds.copy(), include_diagnostics, ignore_policy, }
+  {
+    iou_thresholds: iou_thresholds.copy(),
+    include_diagnostics,
+    include_image_summaries,
+    ignore_policy,
+  }
 }
 
 ///|
@@ -337,6 +390,7 @@ pub fn EvalConfig::coco() -> EvalConfig {
       0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.8999999999999999, 0.95,
     ],
     include_diagnostics: false,
+    include_image_summaries: false,
     ignore_policy: "coco_bbox",
   }
 }
@@ -349,6 +403,11 @@ pub fn EvalConfig::iou_thresholds(self : EvalConfig) -> Array[Double] {
 ///|
 pub fn EvalConfig::include_diagnostics(self : EvalConfig) -> Bool {
   self.include_diagnostics
+}
+
+///|
+pub fn EvalConfig::include_image_summaries(self : EvalConfig) -> Bool {
+  self.include_image_summaries
 }
 
 ///|
@@ -877,6 +936,7 @@ pub fn evaluate_with_diagnostics(
   evaluate_internal(dataset, predictions, {
     iou_thresholds: default.iou_thresholds,
     include_diagnostics: true,
+    include_image_summaries: false,
     ignore_policy: default.ignore_policy,
   })
 }
@@ -964,6 +1024,7 @@ fn evaluate_internal(
   }
   let classes : Array[ClassMetrics] = []
   let diagnostics : Array[MatchDiagnostic] = []
+  let image_trace : Array[MatchDiagnostic] = []
   let ap : Array[Double] = []
   let ap50 : Array[Double] = []
   let ap75 : Array[Double] = []
@@ -1003,6 +1064,62 @@ fn evaluate_internal(
     ar_medium.push(metrics.ar_medium)
     ar_large.push(metrics.ar_large)
   }
+  let image_summaries : Array[ImageSummary] = []
+  if config.include_image_summaries {
+    let counts_by_image : Map[Int, Array[Int]] = Map([])
+    for image in dataset.images {
+      counts_by_image[image.id] = [0, 0, 0, 0]
+    }
+    for category in dataset.categories {
+      evaluate_curve(
+        dataset,
+        detections,
+        category.id,
+        0.5,
+        0.0,
+        1.0e10,
+        100,
+        Some(image_trace),
+        config.ignore_policy == "respect_explicit",
+      )
+      |> ignore
+    }
+    for entry in image_trace {
+      match counts_by_image.get(entry.image_id) {
+        Some(counts) =>
+          match entry.status {
+            "tp" => counts[0] += 1
+            "fp" => counts[1] += 1
+            "fn" => counts[2] += 1
+            "ignored" => counts[3] += 1
+            _ => ()
+          }
+        None => ()
+      }
+    }
+    for image in dataset.images {
+      match counts_by_image.get(image.id) {
+        Some(counts) =>
+          image_summaries.push({
+            image_id: image.id,
+            tp: counts[0],
+            fp: counts[1],
+            fn_count: counts[2],
+            ignored: counts[3],
+          })
+        None => ()
+      }
+    }
+    image_summaries.sort_by(fn(left, right) {
+      if left.image_id < right.image_id {
+        -1
+      } else if left.image_id > right.image_id {
+        1
+      } else {
+        0
+      }
+    })
+  }
   {
     schema_version: "0.1.0",
     evaluator_version: "0.1.0",
@@ -1030,6 +1147,7 @@ fn evaluate_internal(
     },
     classes,
     diagnostics,
+    image_summaries,
     quality_warnings,
   }
 }

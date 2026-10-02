@@ -23,7 +23,7 @@ def run(*options):
 
 
 def main():
-    result = run("--diagnostics")
+    result = run("--diagnostics", "--image-ranking")
     assert result.returncode == 0, result.stderr
     report = json.loads(result.stdout)
     ap50 = next(item for item in report["metrics"] if item["name"] == "ap50")
@@ -35,6 +35,16 @@ def main():
         if item["iou_threshold"] == 0.5 and item["status"] == "fp"
     }
     assert errors == {0: "wrong_class", 1: "localization", 3: "duplicate"}, errors
+    assert report["baseline"]["image_summaries"] == [
+        {"image_id": 1, "tp": 2, "fp": 0, "fn_count": 0, "ignored": 0}
+    ]
+    assert report["candidate"]["image_summaries"] == [
+        {"image_id": 1, "tp": 1, "fp": 3, "fn_count": 1, "ignored": 0}
+    ]
+    assert report["image_changes"] == [
+        {"image_id": 1, "baseline_errors": 0, "candidate_errors": 4,
+         "error_delta": 4}
+    ]
 
     with tempfile.TemporaryDirectory() as directory:
         directory = Path(directory)
@@ -76,6 +86,10 @@ def main():
             assert blocked.returncode == 2, blocked.stderr
             assert not blocked_path.exists()
 
+        repeated = run("--image-ranking", "--image-ranking")
+        assert repeated.returncode == 2
+        assert "may only be given once" in repeated.stderr
+
         reused_path = run("--output", str(CANDIDATE))
         assert reused_path.returncode == 2
         assert "output path must differ" in reused_path.stderr
@@ -83,6 +97,7 @@ def main():
     print(f"AP50: baseline {ap50['baseline']}, candidate {ap50['candidate']}, delta {ap50['delta']}")
     for detection_id, reason in sorted(errors.items()):
         print(f"candidate detection {detection_id}: {reason}")
+    print("image 1: baseline errors 0, candidate errors 4, delta +4")
     print("AP50 and quality gates returned code 3 with complete reports")
 
 

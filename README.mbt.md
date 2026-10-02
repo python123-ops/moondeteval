@@ -25,7 +25,10 @@ For a direct two-detector comparison, run:
 
 ```sh
 moon run cli --target native -- examples/compare-ground-truth.json examples/compare-baseline.json --compare examples/compare-candidate.json --diagnostics
+moon run cli --target native -- examples/compare-ground-truth.json examples/compare-baseline.json --compare examples/compare-candidate.json --image-ranking
 ```
+
+`--image-ranking` adds `image_summaries` to each evaluation: per image `tp`, `fp`, `fn_count`, and `ignored` at fixed IoU 0.50, all areas, and maxDets=100 per image/category. These are detection counts, not per-image AP. The option works without `--diagnostics` and does not alter AP/AR. In comparison mode, `image_changes` ranks images by `error_delta = candidate(fp + fn_count) - baseline(fp + fn_count)`, largest regression first, then image ID for ties. An image with no truths or predictions still has a zero-count row; crowd matches are `ignored`, not errors. The option is available to library callers through `EvalConfig::new(..., include_image_summaries=true)`. Without it the arrays are empty. This ranking is a review aid, not an official COCO metric.
 
 `--compare` evaluates both prediction files against the same ground truths and configuration. The comparison JSON contains complete `baseline` and `candidate` reports, then 12 overall metric changes and 12 changes per class in stable metric order. Every `delta` is candidate minus baseline; a COCO `-1` undefined value becomes `null` in the comparison entries and its delta is `null`. The full nested reports still retain their original `-1` representation. In the included synthetic example, baseline AP50 is `1`, candidate AP50 is `0.25`, and the delta is `-0.75`; at IoU 0.5 candidate detection IDs 0, 1, and 3 are `wrong_class`, `localization`, and `duplicate`. `python examples/compare_demo.py` checks these values and prints a short readable trace. The diagnostic reason labels are MoonDetEval explanations, not official COCO categories.
 

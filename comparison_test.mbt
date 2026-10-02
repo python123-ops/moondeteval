@@ -56,3 +56,59 @@ test "comparison defaults are identical to two standalone evaluations" {
   )
   assert_eq(comparison.metrics()[0].delta(), Some(-1.0))
 }
+
+///|
+test "image ranking isolates regressions at IoU 0.50 without full diagnostics" {
+  let box = @moondeteval.Box::from_xywh(0.0, 0.0, 10.0, 10.0)
+  let far = @moondeteval.Box::from_xywh(30.0, 30.0, 10.0, 10.0)
+  let dataset = @moondeteval.Dataset::new(
+    [
+      @moondeteval.Image::new(3, 50, 50),
+      @moondeteval.Image::new(1, 50, 50),
+      @moondeteval.Image::new(2, 50, 50),
+      @moondeteval.Image::new(4, 50, 50),
+    ],
+    [@moondeteval.Category::new(7, "object")],
+    [
+      @moondeteval.GroundTruth::new(1, 1, 7, box, area=100.0),
+      @moondeteval.GroundTruth::new(2, 2, 7, box, area=100.0),
+    ],
+  )
+  let baseline = [
+    @moondeteval.Detection::new(1, 1, 7, box, 0.9),
+    @moondeteval.Detection::new(2, 2, 7, box, 0.9),
+    @moondeteval.Detection::new(5, 2, 7, far, 0.8),
+  ]
+  let candidate = [
+    @moondeteval.Detection::new(3, 2, 7, box, 0.9),
+    @moondeteval.Detection::new(4, 3, 7, far, 0.9),
+  ]
+  let config = @moondeteval.EvalConfig::new(
+    [0.75],
+    include_image_summaries=true,
+  )
+  let comparison = @moondeteval.compare_predictions_with_config(
+    dataset, baseline, candidate, config,
+  )
+  let changes = comparison.image_changes()
+  assert_eq(changes.length(), 4)
+  assert_eq(changes[0].image_id(), 1)
+  assert_eq(changes[0].error_delta(), 1)
+  assert_eq(changes[1].image_id(), 3)
+  assert_eq(changes[1].error_delta(), 1)
+  assert_eq(changes[2].image_id(), 4)
+  assert_eq(changes[2].error_delta(), 0)
+  assert_eq(changes[3].image_id(), 2)
+  assert_eq(changes[3].error_delta(), -1)
+  let summaries = comparison.candidate().image_summaries()
+  assert_eq(summaries[0].image_id(), 1)
+  assert_eq(summaries[0].fn_count(), 1)
+  assert_eq(summaries[1].tp(), 1)
+  assert_eq(summaries[2].fp(), 1)
+  assert_eq(summaries[3].image_id(), 4)
+  assert_eq(summaries[3].tp(), 0)
+  assert_eq(summaries[3].fn_count(), 0)
+  assert_eq(comparison.candidate().diagnostics().length(), 0)
+  assert_eq(comparison.candidate().summary().ap50(), 51.0 / 101.0)
+  assert_true(comparison.to_json_string().contains("\"error_delta\":1"))
+}
