@@ -22,7 +22,7 @@ There is real feature overlap with [moonbit-visual-debug](https://mooncakes.io/d
 
 ## Install and call the library
 
-Once version `0.1.0` is published on Mooncakes, add the exact version to your own MoonBit module with `moon add python123-ops/moondeteval@0.1.0`, then add `"python123-ops/moondeteval"` to that package's `moon.pkg` imports. The registry installation itself is a release check; until it is published, use this repository's source checkout. This minimal in-memory consumer was compiled and run against the generated release archive, producing `AP50=1`:
+Version [`0.1.0`](https://mooncakes.io/docs/python123-ops/moondeteval@0.1.0) is published on Mooncakes. Add the exact version to your own MoonBit module with `moon add python123-ops/moondeteval@0.1.0`, then add `"python123-ops/moondeteval"` to that package's `moon.pkg` imports. This minimal in-memory consumer was compiled and run both against the release archive and from a separate module using the exact registry version, producing `AP50=1`:
 
 ```moonbit nocheck
 ///|
@@ -56,6 +56,7 @@ moon run cli --target native -- examples/ground-truth.json examples/detections.j
 moon run cli --target native -- examples/ground-truth.json examples/detections.json --diagnostics --min-ap50 0.8
 moon run cli --target native -- examples/ground-truth.json examples/detections.json --output report.json
 python examples/compare_demo.py
+python examples/showcase_demo.py
 ```
 
 The first command's actual `schema_version` and `summary` fields are:

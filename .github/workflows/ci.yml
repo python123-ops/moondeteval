@@ -40,6 +40,8 @@ jobs:
           PY
       - name: Run paired detector demo and quality gates
         run: python3 examples/compare_demo.py
+      - name: Run concise showcase demo
+        run: python3 examples/showcase_demo.py
       - name: Verify multi-image YOLO ingestion and mixed-format comparison
         run: python3 examples/yolo_manifest_demo.py
       - name: Verify independent consumer and MBMOT adapter
