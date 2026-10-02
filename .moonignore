@@ -1,6 +1,6 @@
-# Keep the independent workspace example in Git but outside the published library.
-/examples/consumer/
-
-# Generated outputs can also exist below an example directory.
+# Development-only files are kept in Git but excluded from Mooncakes archives.
+AGENTS.md
+reference_compare.py
+examples/
 **/_build/
 **/.mooncakes/

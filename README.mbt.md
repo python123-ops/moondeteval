@@ -12,17 +12,56 @@ All 12 summary fields are unitless fractions in `[0,1]` when defined, in this or
 
 COCO JSON errors identify the source file (in CLI messages), record index, and decoded field path where available. Duplicate image/category/annotation IDs and unknown annotation references report their record and field. The underlying JSON parser resolves repeated keys within one object to the **last value** before model validation; duplicate object keys are not rejected. Producers should emit unique keys. A JSON number larger than JavaScript's exact integer range remains exact in MoonDetEval's annotation ID output, but a JavaScript consumer must use a lossless JSON parser to preserve it.
 
-The implementation is **under compatibility validation**. The [differential script](reference_compare.py) checks all 12 summary metrics, per-image matches, and exported 101-point precision/recall at all 10 default IoU thresholds against `pycocotools==2.0.7` on nine synthetic scenarios. These include explicit `ignore`, crowd, empty detections, `maxDets=100`, area and IoU boundaries, score ties within and across images, out-of-image boxes, and fixed-seed mixed images. This is stronger evidence for the covered bbox cases, but does not establish full COCO equivalence.
+The implementation is **under compatibility validation**. The [differential script](https://github.com/python123-ops/moondeteval/blob/main/reference_compare.py) checks all 12 summary metrics, per-image matches, and exported 101-point precision/recall at all 10 default IoU thresholds against `pycocotools==2.0.7` on nine synthetic scenarios. These include explicit `ignore`, crowd, empty detections, `maxDets=100`, area and IoU boundaries, score ties within and across images, out-of-image boxes, and fixed-seed mixed images. This is stronger evidence for the covered bbox cases, but does not establish full COCO equivalence.
 
 In the default `coco_bbox` mode, COCO bbox evaluation uses `iscrowd` to determine whether a ground truth is ignored, even when the source annotation contains `ignore=1`. The input flag remains available in the model. Callers who need that flag to affect matching can construct `EvalConfig::new(..., ignore_policy="respect_explicit")`; the chosen policy is recorded in the report. The latter is a MoonDetEval extension, not a COCO compatibility claim.
 
-## Run the example
+## Related packages
+
+There is real feature overlap with [moonbit-visual-debug](https://mooncakes.io/docs/xlh123jjj/moonbit-visual-debug) and [moonbit-synthetic-vision](https://mooncakes.io/docs/caassien/moonbit-synthetic-vision). In the versions inspected on 2026-10-02 (`0.2.2` and `0.3.0`), the former exposes single-threshold detection precision/recall/F1, confusion data, and COCO/YOLO adapters; the latter exposes synthetic fixtures and integer-scale detection precision/recall. MoonDetEval focuses on the 12 COCO bbox AP/AR summaries, `maxDets`/crowd/area behavior checked against `pycocotools`, and a two-prediction native CLI with diagnostics and quality gates. This describes the inspected APIs, not a claim that no other package can evaluate detections.
+
+## Install and call the library
+
+Once version `0.1.0` is published on Mooncakes, add the exact version to your own MoonBit module with `moon add python123-ops/moondeteval@0.1.0`, then add `"python123-ops/moondeteval"` to that package's `moon.pkg` imports. The registry installation itself is a release check; until it is published, use this repository's source checkout. This minimal in-memory consumer was compiled and run against the generated release archive, producing `AP50=1`:
+
+```moonbit nocheck
+///|
+fn main {
+  let box = @moondeteval.Box::from_xywh(0.0, 0.0, 10.0, 10.0) catch {
+    error => abort(error.message())
+  }
+  let dataset = @moondeteval.Dataset::new(
+    [@moondeteval.Image::new(1, 20, 20)],
+    [@moondeteval.Category::new(7, "object")],
+    [@moondeteval.GroundTruth::new(9L, 1, 7, box, area=100.0)],
+  ) catch {
+    error => abort(error.message())
+  }
+  let prediction = @moondeteval.Detection::new(0, 1, 7, box, 0.9) catch {
+    error => abort(error.message())
+  }
+  let report = @moondeteval.evaluate(dataset, [prediction]) catch {
+    error => abort(error.message())
+  }
+  println("AP50=\{report.summary().ap50()}")
+}
+```
+
+## Run the source examples
+
+From a checkout of this repository, run:
 
 ```sh
 moon run cli --target native -- examples/ground-truth.json examples/detections.json
 moon run cli --target native -- examples/ground-truth.json examples/detections.json --diagnostics --min-ap50 0.8
 moon run cli --target native -- examples/ground-truth.json examples/detections.json --output report.json
 python examples/compare_demo.py
+```
+
+The first command's actual `schema_version` and `summary` fields are:
+
+```json
+{"schema_version":"0.1.0","summary":{"ap":1,"ap50":1,"ap75":1,"ap_small":1,"ap_medium":-1,"ap_large":-1,"ar1":0,"ar10":1,"ar100":1,"ar_small":1,"ar_medium":-1,"ar_large":-1}}
 ```
 
 The command prints a JSON report with `schema_version`, `evaluator_version`, `config`, `counts`, `summary`, `classes`, `diagnostics`, and `quality_warnings`. The example's AP and AP50 are `1`, while AR@1 is `0`: the highest-scored prediction lands inside an ignored crowd box and occupies the single-detection slot. The second prediction matches the regular ground truth. `counts` includes raw input totals and `evaluated_detections`, the predictions retained after the all-area maxDets=100 cap for each image/category. A retained prediction need not be a true positive. Warnings identify out-of-image ground-truth and detection boxes by source type and record/image/category IDs. They appear even without `--diagnostics`, and never clip boxes or alter AP/AR. `--diagnostics` includes decisions for each configured IoU threshold using the all-area range and maxDets=100. Each entry has source IDs, status (`tp`, `fp`, `ignored`, or `fn`), reason, and matched IoU (zero when unmatched). FP reasons use fixed priority: `duplicate`, `wrong_class`, `localization` (same-class IoU at least 0.1), then `background`. These explanations do not affect metrics.
@@ -133,9 +172,9 @@ The public API also supports `Image::new`, `Category::new`, `Box::from_xywh`, `G
 
 The [independent consumer](https://github.com/python123-ops/moondeteval/blob/main/examples/consumer/consumer_test.mbt) is a separate MoonBit module linked to this checkout by its `moon.work` file. It checks the public API and includes a [small MBMOT detector adapter](https://github.com/python123-ops/moondeteval/blob/main/examples/consumer/mbmot_adapter.mbt): MBMOT detection boxes, scores, and class IDs become MoonDetEval predictions for a supplied image ID. Tracking IDs and MOT metrics are deliberately not involved. Run `moon test --target all --deny-warn` from `examples/consumer` to verify it. This is local workspace validation; installation of a published MoonDetEval version remains a separate release check.
 
-The same consumer also imports the August [moon-cv-geometry](https://github.com/python123-ops/moon-cv-geometry) package at version `0.2.2`. Its [geometry adapter](examples/consumer/geometry_adapter.mbt) converts a `Rect2` to a validated MoonDetEval `Box`, or maps four corners through a homography and evaluates the target-image envelope. The integration test gets AP50 `1` for a known transform and rejects a projective horizon crossing or zero-area rectangle. No geometry dependency is added to the MoonDetEval library; applications opt into the bridge when they need cross-view coordinates. The geometry repository's `examples/detection_bounds` independently shows the source side of the workflow.
+The same consumer also imports the August [moon-cv-geometry](https://github.com/python123-ops/moon-cv-geometry) package at version `0.2.2`. Its [geometry adapter](https://github.com/python123-ops/moondeteval/blob/main/examples/consumer/geometry_adapter.mbt) converts a `Rect2` to a validated MoonDetEval `Box`, or maps four corners through a homography and evaluates the target-image envelope. The integration test gets AP50 `1` for a known transform and rejects a projective horizon crossing or zero-area rectangle. No geometry dependency is added to the MoonDetEval library; applications opt into the bridge when they need cross-view coordinates. The geometry repository's `examples/detection_bounds` independently shows the source side of the workflow.
 
-## Verify
+## Verify a source checkout
 
 ```sh
 moon fmt --check

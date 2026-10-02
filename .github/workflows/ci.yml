@@ -21,6 +21,23 @@ jobs:
         run: moon check --target all --deny-warn
       - name: Test all stable targets
         run: moon test --target all --deny-warn
+      - name: Validate release archive contents
+        run: |
+          moon package
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          archives = list(Path('_build/publish').glob('python123-ops-moondeteval-*.zip'))
+          assert len(archives) == 1, archives
+          with ZipFile(archives[0]) as archive:
+              names = set(archive.namelist())
+          required = {'moon.mod', 'moon.pkg', 'LICENSE', 'README.mbt.md', 'CHANGELOG.md',
+                      'pkg.generated.mbti', 'box.mbt', 'evaluation.mbt', 'cli/main.mbt'}
+          assert required <= names, required - names
+          assert not any(name.startswith('examples/') for name in names)
+          assert not any(name in {'AGENTS.md', 'reference_compare.py'} for name in names)
+          PY
       - name: Run paired detector demo and quality gates
         run: python3 examples/compare_demo.py
       - name: Verify multi-image YOLO ingestion and mixed-format comparison
