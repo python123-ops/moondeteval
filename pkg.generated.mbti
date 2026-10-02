@@ -162,7 +162,7 @@ pub fn EvaluationReport::to_json(Self) -> Json
 pub fn EvaluationReport::to_json_string(Self) -> String
 
 pub struct GroundTruth {
-  id : Int
+  id : Int64
   image_id : Int
   category_id : Int
   bbox : Box
@@ -174,11 +174,11 @@ pub fn GroundTruth::area(Self) -> Double
 pub fn GroundTruth::bbox(Self) -> Box
 pub fn GroundTruth::category_id(Self) -> Int
 pub fn GroundTruth::equal(Self, Self) -> Bool
-pub fn GroundTruth::id(Self) -> Int
+pub fn GroundTruth::id(Self) -> Int64
 pub fn GroundTruth::ignore(Self) -> Bool
 pub fn GroundTruth::image_id(Self) -> Int
 pub fn GroundTruth::iscrowd(Self) -> Bool
-pub fn GroundTruth::new(Int, Int, Int, Box, area~ : Double, iscrowd? : Bool, ignore? : Bool) -> Self raise EvalError
+pub fn GroundTruth::new(Int64, Int, Int, Box, area~ : Double, iscrowd? : Bool, ignore? : Bool) -> Self raise EvalError
 pub fn GroundTruth::not_equal(Self, Self) -> Bool
 pub fn GroundTruth::to_repr(Self) -> @debug.Repr
 
@@ -240,20 +240,21 @@ pub struct MatchDiagnostic {
   image_id : Int
   category_id : Int
   detection_id : Int?
-  ground_truth_id : Int?
+  ground_truth_id : Int64?
   iou : Double
   status : String
   reason : String
-} derive(ToJson)
+}
 pub fn MatchDiagnostic::category_id(Self) -> Int
 pub fn MatchDiagnostic::detection_id(Self) -> Int?
-pub fn MatchDiagnostic::ground_truth_id(Self) -> Int?
+pub fn MatchDiagnostic::ground_truth_id(Self) -> Int64?
 pub fn MatchDiagnostic::image_id(Self) -> Int
 pub fn MatchDiagnostic::iou(Self) -> Double
 pub fn MatchDiagnostic::iou_threshold(Self) -> Double
 pub fn MatchDiagnostic::reason(Self) -> String
 pub fn MatchDiagnostic::status(Self) -> String
 pub fn MatchDiagnostic::to_json(Self) -> Json
+pub impl ToJson for MatchDiagnostic
 
 pub struct MetricChange {
   name : String
@@ -313,17 +314,18 @@ pub fn PrecisionRecallCurve::to_json(Self) -> Json
 
 pub struct QualityWarning {
   source : String
-  record_id : Int
+  record_id : Int64
   image_id : Int
   category_id : Int
   kind : String
-} derive(ToJson)
+}
 pub fn QualityWarning::category_id(Self) -> Int
 pub fn QualityWarning::image_id(Self) -> Int
 pub fn QualityWarning::kind(Self) -> String
-pub fn QualityWarning::record_id(Self) -> Int
+pub fn QualityWarning::record_id(Self) -> Int64
 pub fn QualityWarning::source(Self) -> String
 pub fn QualityWarning::to_json(Self) -> Json
+pub impl ToJson for QualityWarning
 
 pub struct YoloFile {
   image_id : Int

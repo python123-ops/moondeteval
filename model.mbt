@@ -68,7 +68,7 @@ pub fn Category::name(self : Category) -> String {
 ///|
 /// A validated COCO-style ground-truth object.
 pub struct GroundTruth {
-  id : Int
+  id : Int64
   image_id : Int
   category_id : Int
   bbox : Box
@@ -85,7 +85,7 @@ pub extend GroundTruth with Eq::{equal, not_equal}
 
 ///|
 pub fn GroundTruth::new(
-  id : Int,
+  id : Int64,
   image_id : Int,
   category_id : Int,
   bbox : Box,
@@ -100,7 +100,7 @@ pub fn GroundTruth::new(
 }
 
 ///|
-pub fn GroundTruth::id(self : GroundTruth) -> Int {
+pub fn GroundTruth::id(self : GroundTruth) -> Int64 {
   self.id
 }
 
@@ -205,7 +205,7 @@ pub fn Dataset::new(
 ) -> Dataset raise EvalError {
   let image_ids : Map[Int, Bool] = Map([])
   let category_ids : Map[Int, Bool] = Map([])
-  let truth_ids : Map[Int, Bool] = Map([])
+  let truth_ids : Map[Int64, Bool] = Map([])
   for image in images {
     if image_ids.contains(image.id) {
       raise InvalidInput("duplicate image id \{image.id}")

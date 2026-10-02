@@ -13,7 +13,7 @@ priv struct CocoCategory {
 
 ///|
 priv struct CocoAnnotation {
-  id : Int
+  id : Json
   image_id : Int
   category_id : Int
   bbox : Array[Double]
@@ -47,6 +47,20 @@ fn parse_box(
   }
   Box::from_xywh(coordinates[0], coordinates[1], coordinates[2], coordinates[3]) catch {
     error => raise InvalidInput(location + ".bbox: " + error.message())
+  }
+}
+
+///|
+fn parse_annotation_id(
+  value : Json,
+  location : String,
+) -> Int64 raise EvalError {
+  guard value is Json::Number(_, ..) else {
+    raise InvalidInput(location + " must be a 64-bit integer JSON number")
+  }
+  let token = value.stringify()
+  @json.from_json(Json::string(token)) catch {
+    _ => raise InvalidInput(location + " must be a 64-bit integer JSON number")
   }
 }
 
@@ -103,7 +117,7 @@ pub fn parse_coco_dataset(source : String) -> Dataset raise EvalError {
     }
     let bbox = parse_box(annotation.bbox, location)
     let item = GroundTruth::new(
-      annotation.id,
+      parse_annotation_id(annotation.id, location + ".id"),
       annotation.image_id,
       annotation.category_id,
       bbox,

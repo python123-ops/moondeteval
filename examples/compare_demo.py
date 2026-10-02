@@ -19,6 +19,7 @@ COMMAND = [
 def run(*options):
     return subprocess.run(
         COMMAND + list(options), cwd=ROOT, capture_output=True, text=True,
+        encoding="utf-8",
     )
 
 
@@ -72,7 +73,7 @@ def main():
             ["moon", "run", "cli", "--target", "native", "--", str(GROUND_TRUTH),
              str(BASELINE), "--compare", str(outside), "--fail-on-warning",
              "--output", str(warning_path)],
-            cwd=ROOT, capture_output=True, text=True,
+            cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
         )
         assert warned.returncode == 3, warned.stderr
         warning_report = json.loads(warning_path.read_text(encoding="utf-8"))
@@ -85,7 +86,7 @@ def main():
         shared_warning = subprocess.run(
             ["moon", "run", "cli", "--target", "native", "--", str(outside_truth),
              str(BASELINE), "--compare", str(CANDIDATE), "--fail-on-warning"],
-            cwd=ROOT, capture_output=True, text=True,
+            cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
         )
         assert shared_warning.returncode == 3, shared_warning.stderr
         assert "1 out-of-image warning(s)" in shared_warning.stderr
@@ -105,6 +106,18 @@ def main():
 
         compact = run()
         assert compact.returncode == 0, compact.stderr
+        exact_bytes = len(compact.stdout.encode("utf-8"))
+        assert run("--max-report-bytes", str(exact_bytes)).returncode == 0
+        assert run("--max-report-bytes", str(exact_bytes - 1)).returncode == 2
+        records = (
+            report["baseline"]["counts"]["images"]
+            + report["baseline"]["counts"]["categories"]
+            + report["baseline"]["counts"]["ground_truths"]
+            + report["baseline"]["counts"]["detections"]
+            + report["candidate"]["counts"]["detections"]
+        )
+        assert run("--max-records", str(records)).returncode == 0
+        assert run("--max-records", str(records - 1)).returncode == 2
         curve_limit = len(compact.stdout) + 10
         curves_path = directory / "oversized-curves.json"
         oversized_curves = run(

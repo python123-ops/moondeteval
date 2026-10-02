@@ -157,11 +157,25 @@ pub fn InputCounts::evaluated_detections(self : InputCounts) -> Int {
 /// A nonfatal spatial input warning; scoring uses the original box unchanged.
 pub struct QualityWarning {
   source : String
-  record_id : Int
+  record_id : Int64
   image_id : Int
   category_id : Int
   kind : String
-} derive(ToJson)
+}
+
+///|
+pub impl ToJson for QualityWarning with fn to_json(self) {
+  Json::object({
+    "source": @json.to_json(self.source),
+    "record_id": Json::number(
+      self.record_id.to_double(),
+      repr=self.record_id.to_string(),
+    ),
+    "image_id": @json.to_json(self.image_id),
+    "category_id": @json.to_json(self.category_id),
+    "kind": @json.to_json(self.kind),
+  })
+}
 
 ///|
 pub extend QualityWarning with ToJson::{to_json}
@@ -172,7 +186,7 @@ pub fn QualityWarning::source(self : QualityWarning) -> String {
 }
 
 ///|
-pub fn QualityWarning::record_id(self : QualityWarning) -> Int {
+pub fn QualityWarning::record_id(self : QualityWarning) -> Int64 {
   self.record_id
 }
 
@@ -343,11 +357,31 @@ pub struct MatchDiagnostic {
   image_id : Int
   category_id : Int
   detection_id : Int?
-  ground_truth_id : Int?
+  ground_truth_id : Int64?
   iou : Double
   status : String
   reason : String
-} derive(ToJson)
+}
+
+///|
+pub impl ToJson for MatchDiagnostic with fn to_json(self) {
+  Json::object({
+    "iou_threshold": @json.to_json(self.iou_threshold),
+    "image_id": @json.to_json(self.image_id),
+    "category_id": @json.to_json(self.category_id),
+    "detection_id": match self.detection_id {
+      Some(id) => @json.to_json(id)
+      None => Json::null()
+    },
+    "ground_truth_id": match self.ground_truth_id {
+      Some(id) => Json::number(id.to_double(), repr=id.to_string())
+      None => Json::null()
+    },
+    "iou": @json.to_json(self.iou),
+    "status": @json.to_json(self.status),
+    "reason": @json.to_json(self.reason),
+  })
+}
 
 ///|
 pub extend MatchDiagnostic with ToJson::{to_json}
@@ -373,7 +407,7 @@ pub fn MatchDiagnostic::detection_id(self : MatchDiagnostic) -> Int? {
 }
 
 ///|
-pub fn MatchDiagnostic::ground_truth_id(self : MatchDiagnostic) -> Int? {
+pub fn MatchDiagnostic::ground_truth_id(self : MatchDiagnostic) -> Int64? {
   self.ground_truth_id
 }
 
@@ -704,7 +738,7 @@ fn evaluate_curve(
       }
       match trace {
         Some(entries) => {
-          let ground_truth_id = if best >= 0 {
+          let ground_truth_id : Int64? = if best >= 0 {
             Some(truths[best].truth.id)
           } else {
             None
@@ -822,7 +856,9 @@ fn evaluate_curve(
   let mut index = 0
   let sampled_precision : Array[Double] = []
   for sample in 0..<=100 {
-    let target = sample.to_double() / 100.0
+    // COCOeval uses np.linspace(0, 1, 101), whose step is 0.01.
+    // Multiplication preserves its rounding at samples such as 0.70.
+    let target = sample.to_double() * 0.01
     while index < recall.length() && recall[index] < target {
       index += 1
     }
@@ -1119,7 +1155,7 @@ fn evaluate_internal(
         if box_outside_image(prediction.bbox, image) {
           quality_warnings.push({
             source: "detection",
-            record_id: prediction.id,
+            record_id: prediction.id.to_int64(),
             image_id: prediction.image_id,
             category_id: prediction.category_id,
             kind: "outside_image",
@@ -1235,7 +1271,7 @@ fn evaluate_internal(
   let recall_thresholds : Array[Double] = []
   if config.include_pr_curves {
     for sample in 0..<=100 {
-      recall_thresholds.push(sample.to_double() / 100.0)
+      recall_thresholds.push(sample.to_double() * 0.01)
     }
   }
   {

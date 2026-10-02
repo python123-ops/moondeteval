@@ -43,3 +43,49 @@ test "COCO JSON reports the record index for invalid field types" {
     _ => fail("invalid image id accepted")
   }
 }
+
+///|
+test "COCO crowd annotation keeps a real-world 64-bit ground-truth id" {
+  let dataset = @moondeteval.parse_coco_dataset(
+    "{\"images\":[{\"id\":1,\"width\":100,\"height\":100}],\"categories\":[{\"id\":33,\"name\":\"suitcase\"}],\"annotations\":[{\"id\":903300451308,\"image_id\":1,\"category_id\":33,\"bbox\":[0,0,20,20],\"area\":400,\"iscrowd\":1},{\"id\":2,\"image_id\":1,\"category_id\":33,\"bbox\":[50,50,10,10],\"area\":100,\"iscrowd\":0}]}",
+  )
+  assert_eq(dataset.truths()[0].id(), 903300451308L)
+  let predictions = @moondeteval.parse_coco_detections(
+    "[{\"image_id\":1,\"category_id\":33,\"bbox\":[0,0,20,20],\"score\":0.9}]",
+  )
+  let report = @moondeteval.evaluate_with_diagnostics(dataset, predictions)
+  assert_eq(report.diagnostics()[0].status(), "ignored")
+  assert_eq(report.diagnostics()[0].ground_truth_id(), Some(903300451308L))
+  assert_eq(report.diagnostics()[1].status(), "fn")
+  assert_eq(report.diagnostics()[1].ground_truth_id(), Some(2L))
+  assert_true(
+    report.to_json_string().contains("\"ground_truth_id\":903300451308"),
+  )
+}
+
+///|
+test "COCO annotation IDs preserve integers beyond double precision" {
+  let dataset = @moondeteval.parse_coco_dataset(
+    "{\"images\":[{\"id\":1,\"width\":20,\"height\":20}],\"categories\":[{\"id\":1,\"name\":\"box\"}],\"annotations\":[{\"id\":9007199254740993,\"image_id\":1,\"category_id\":1,\"bbox\":[0,0,10,10],\"area\":100}]}",
+  )
+  assert_eq(dataset.truths()[0].id(), 9007199254740993L)
+  let report = @moondeteval.evaluate_with_diagnostics(dataset, [])
+  assert_true(
+    report.to_json_string().contains("\"ground_truth_id\":9007199254740993"),
+  )
+}
+
+///|
+test "COCO annotation IDs reject numbers outside signed 64-bit range" {
+  try
+    @moondeteval.parse_coco_dataset(
+      "{\"images\":[{\"id\":1,\"width\":20,\"height\":20}],\"categories\":[{\"id\":1,\"name\":\"box\"}],\"annotations\":[{\"id\":9223372036854775808,\"image_id\":1,\"category_id\":1,\"bbox\":[0,0,10,10],\"area\":100}]}",
+    )
+  catch {
+    @moondeteval.InvalidInput(message) =>
+      assert_true(message.contains("annotations[0].id"))
+    _ => fail("wrong error")
+  } noraise {
+    _ => fail("out-of-range annotation id accepted")
+  }
+}

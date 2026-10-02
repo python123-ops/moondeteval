@@ -250,6 +250,112 @@ test "evaluation configuration rejects empty and non-increasing thresholds" {
 }
 
 ///|
+test "explicit ground-truth area crosses both COCO bin boundaries" {
+  let bbox = @moondeteval.Box::from_xywh(0.0, 0.0, 10.0, 10.0)
+  let areas = [1023.999, 1024.0, 1024.001, 9215.999, 9216.0, 9216.001]
+  let small = [true, true, false, false, false, false]
+  let medium = [false, true, true, true, true, false]
+  let large = [false, false, false, false, true, true]
+  for index, area in areas {
+    let dataset = @moondeteval.Dataset::new(
+      [@moondeteval.Image::new(1, 100, 100)],
+      [@moondeteval.Category::new(1, "object")],
+      [@moondeteval.GroundTruth::new(1, 1, 1, bbox, area~)],
+    )
+    let report = @moondeteval.evaluate(dataset, [
+      @moondeteval.Detection::new(1, 1, 1, bbox, 0.9),
+    ])
+    assert_eq(
+      report.summary().ap_small(),
+      if small[index] {
+        1.0
+      } else {
+        -1.0
+      },
+    )
+    assert_eq(
+      report.summary().ap_medium(),
+      if medium[index] {
+        1.0
+      } else {
+        -1.0
+      },
+    )
+    assert_eq(
+      report.summary().ap_large(),
+      if large[index] {
+        1.0
+      } else {
+        -1.0
+      },
+    )
+  }
+}
+
+///|
+test "exact IoU threshold and one are inclusive while the next value is not" {
+  let truth = @moondeteval.Box::from_xywh(0.0, 0.0, 10.0, 10.0)
+  let half = @moondeteval.Box::from_xywh(0.0, 0.0, 5.0, 10.0)
+  let dataset = @moondeteval.Dataset::new(
+    [@moondeteval.Image::new(1, 20, 20)],
+    [@moondeteval.Category::new(1, "object")],
+    [@moondeteval.GroundTruth::new(1, 1, 1, truth, area=100.0)],
+  )
+  let config = @moondeteval.EvalConfig::new(
+    [0.5, 0.5000000001, 1.0],
+    include_diagnostics=true,
+  )
+  let report = @moondeteval.evaluate_with_config(
+    dataset,
+    [@moondeteval.Detection::new(1, 1, 1, half, 0.9)],
+    config,
+  )
+  assert_eq(report.summary().ap50(), 1.0)
+  assert_eq(report.diagnostics()[0].status(), "tp")
+  assert_eq(report.diagnostics()[1].status(), "fp")
+  assert_eq(report.diagnostics()[2].status(), "fn")
+  let perfect = @moondeteval.evaluate_with_config(
+    dataset,
+    [@moondeteval.Detection::new(2, 1, 1, truth, 0.9)],
+    @moondeteval.EvalConfig::new([1.0]),
+  )
+  assert_eq(perfect.summary().ap(), 1.0)
+}
+
+///|
+test "maxDets tie at rank one hundred preserves input order per category" {
+  let truth = @moondeteval.Box::from_xywh(0.0, 0.0, 10.0, 10.0)
+  let far = @moondeteval.Box::from_xywh(30.0, 30.0, 10.0, 10.0)
+  let dataset = @moondeteval.Dataset::new(
+    [@moondeteval.Image::new(1, 50, 50)],
+    [@moondeteval.Category::new(1, "target")],
+    [@moondeteval.GroundTruth::new(1, 1, 1, truth, area=100.0)],
+  )
+  let predictions : Array[@moondeteval.Detection] = []
+  for index in 0..<100 {
+    predictions.push(@moondeteval.Detection::new(index, 1, 1, far, 0.5))
+  }
+  predictions.push(@moondeteval.Detection::new(100, 1, 1, truth, 0.5))
+  let missed = @moondeteval.evaluate_with_config(
+    dataset,
+    predictions,
+    @moondeteval.EvalConfig::new([0.5], include_image_summaries=true),
+  )
+  assert_eq(missed.summary().ap(), 0.0)
+  assert_eq(missed.image_summaries()[0].fp(), 100)
+  assert_eq(missed.image_summaries()[0].fn_count(), 1)
+  predictions[99] = predictions[100]
+  predictions.pop() |> ignore
+  let retained = @moondeteval.evaluate_with_config(
+    dataset,
+    predictions,
+    @moondeteval.EvalConfig::new([0.5]),
+  )
+  assert_true(retained.summary().ap() > 0.009999)
+  assert_true(retained.summary().ap() < 0.010001)
+}
+
+///|
 test "image summaries use fixed IoU 0.50 and retain metric invariance" {
   let truth = @moondeteval.Box::from_xywh(0.0, 0.0, 10.0, 10.0)
   let shifted = @moondeteval.Box::from_xywh(2.0, 0.0, 10.0, 10.0)
@@ -483,4 +589,42 @@ test "equal scores across images accumulate in sorted image order" {
   ]
   let ap = @moondeteval.evaluate(dataset, predictions).summary().ap()
   assert_true(ap > 0.666666 && ap < 0.666667)
+}
+
+///|
+test "COCO recall grid rounds 70 percent like the reference implementation" {
+  let truths : Array[@moondeteval.GroundTruth] = []
+  let predictions : Array[@moondeteval.Detection] = []
+  for index in 0..<10 {
+    let box = @moondeteval.Box::from_xywh(
+      index.to_double() * 20.0,
+      0.0,
+      10.0,
+      10.0,
+    )
+    truths.push(
+      @moondeteval.GroundTruth::new(
+        (index + 1).to_int64(),
+        1,
+        1,
+        box,
+        area=100.0,
+      ),
+    )
+    if index < 7 {
+      predictions.push(@moondeteval.Detection::new(index + 1, 1, 1, box, 0.9))
+    }
+  }
+  let dataset = @moondeteval.Dataset::new(
+    [@moondeteval.Image::new(1, 200, 20)],
+    [@moondeteval.Category::new(1, "box")],
+    truths,
+  )
+  let config = @moondeteval.EvalConfig::new([0.5], include_pr_curves=true)
+  let report = @moondeteval.evaluate_with_config(dataset, predictions, config)
+  assert_true(report.recall_thresholds()[70] > 0.7)
+  let curve = report.pr_curves()[0]
+  assert_eq(curve.precision()[69], 1.0)
+  assert_eq(curve.precision()[70], 0.0)
+  assert_true(curve.ap() > 0.693069 && curve.ap() < 0.693070)
 }
