@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MoonDetEval 报告查看器</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="model.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <main>
+    <header class="hero">
+      <div class="eyebrow">MOONDETEVAL · 本地查看器</div>
+      <h1>读懂一次检测评测</h1>
+      <p>选择 MoonDetEval 0.1.0 的 JSON 报告。文件只在本机浏览器中读取，不上传，也不重新计算指标。</p>
+      <label class="file-picker" for="report-file">选择 JSON 报告</label>
+      <input id="report-file" type="file" accept=".json,application/json">
+      <p id="load-status" class="subtle" role="status" aria-live="polite">尚未选择文件</p>
+      <p id="load-error" class="error" role="alert" hidden></p>
+    </header>
+
+    <div id="report-view" hidden>
+      <section class="panel">
+        <h2>报告概览</h2>
+        <p id="report-meta" class="subtle"></p>
+        <div id="report-counts" class="chips"></div>
+        <p id="report-config" class="subtle"></p>
+      </section>
+
+      <section class="panel">
+        <h2>总体指标</h2>
+        <div class="table-wrap"><table id="overall-table"></table></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <h2>逐类别指标</h2>
+          <label>类别 ID <select id="class-select"></select></label>
+        </div>
+        <p id="class-empty" class="subtle" hidden>报告没有类别结果。</p>
+        <div class="table-wrap"><table id="class-table"></table></div>
+      </section>
+
+      <section class="panel">
+        <h2 id="image-heading">逐图结果</h2>
+        <p id="image-empty" class="subtle" hidden></p>
+        <div class="table-wrap"><table id="image-table"></table></div>
+        <div class="pager"><button id="image-prev" type="button">上一页</button><span id="image-page"></span><button id="image-next" type="button">下一页</button></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <h2>PR 曲线</h2>
+          <div class="controls"><label>模型侧 <select id="curve-side"></select></label><label>类别 / IoU <select id="curve-select"></select></label></div>
+        </div>
+        <p id="curve-empty" class="subtle" hidden></p>
+        <p id="curve-meta" class="subtle"></p>
+        <canvas id="curve-canvas" width="680" height="290" aria-label="精确率召回率曲线"></canvas>
+      </section>
+
+      <section class="panel">
+        <h2>匹配诊断</h2>
+        <div class="controls filters">
+          <label>模型侧 <select id="diag-side"></select></label>
+          <label>状态 <select id="diag-status"><option value="">全部</option><option value="tp">TP</option><option value="fp">FP</option><option value="fn">FN</option><option value="ignored">忽略</option></select></label>
+          <label>IoU <select id="diag-threshold"></select></label>
+          <label>图片 ID <input id="diag-image" inputmode="numeric" placeholder="全部"></label>
+          <label>类别 ID <input id="diag-category" inputmode="numeric" placeholder="全部"></label>
+        </div>
+        <p id="diag-empty" class="subtle" hidden></p>
+        <div class="table-wrap"><table id="diag-table"></table></div>
+        <div class="pager"><button id="diag-prev" type="button">上一页</button><span id="diag-page"></span><button id="diag-next" type="button">下一页</button></div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

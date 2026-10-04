@@ -1,0 +1,35 @@
+:root { color-scheme: light; font-family: Inter, "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif; color: #132633; background: #f4f7f7; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { max-width: 1120px; margin: auto; padding: 24px 20px 72px; }
+.hero { padding: 34px 38px; border-radius: 20px; color: white; background: linear-gradient(120deg, #123c48, #1c6874); margin-bottom: 22px; }
+.eyebrow { color: #a7e0d8; font-size: 12px; font-weight: 700; letter-spacing: .13em; }
+h1 { margin: 12px 0; font-size: clamp(28px, 4vw, 42px); }
+h2 { margin: 0 0 16px; font-size: 20px; }
+p { line-height: 1.6; }
+.hero p { max-width: 790px; }
+.file-picker, button { display: inline-block; padding: 9px 16px; border: 1px solid #a5c7cb; border-radius: 9px; background: #fff; color: #123c48; font: inherit; font-weight: 600; cursor: pointer; }
+.file-picker:hover, button:hover { background: #dcf4f1; }
+#report-file { position: absolute; width: 1px; height: 1px; opacity: 0; }
+#report-file:focus-visible + p, .file-picker:focus-within { outline: 3px solid #e4c55d; }
+.hero .subtle { color: #d5e9eb; }
+.panel { padding: 24px 28px; border-radius: 16px; background: white; margin: 16px 0; box-shadow: 0 2px 12px #1939410d; }
+.section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px 24px; }
+.controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.filters { margin: 10px 0 18px; }
+label { display: inline-flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 600; }
+select, input:not([type=file]) { min-width: 100px; max-width: 280px; padding: 8px 10px; border: 1px solid #a9bdc3; border-radius: 8px; background: white; font: inherit; }
+.subtle { color: #526a74; font-size: 14px; }
+.error { color: #8c1515; background: #fff0f0; padding: 10px 12px; border-radius: 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { padding: 6px 10px; border-radius: 8px; background: #e7f3f1; font-size: 13px; }
+.table-wrap { max-width: 100%; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { padding: 9px 12px; border-bottom: 1px solid #e2e9eb; text-align: left; white-space: nowrap; }
+th { color: #31505b; background: #eff5f5; }
+tbody tr:nth-child(even) { background: #f9fbfb; }
+.pager { display: flex; align-items: center; justify-content: end; gap: 12px; margin-top: 14px; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+canvas { display: block; max-width: 100%; margin: 10px auto 0; }
+[hidden] { display: none !important; }
+@media (max-width: 650px) { main { padding: 12px; } .hero, .panel { padding: 22px 18px; } .controls label { width: 100%; } select, input:not([type=file]) { max-width: none; width: 100%; } }

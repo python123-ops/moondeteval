@@ -49,6 +49,8 @@ fn main {
 
 ## Run the source examples
 
+The optional [read-only report viewer](viewer/index.html) opens directly in a browser from a checkout. Generate a JSON file with `--output report.json`, open `viewer/index.html`, and choose that file. It accepts single-model and `--compare` reports with `schema_version=0.1.0`. It shows the existing 12 metrics, class results, per-image changes, PR samples, and paged matching diagnostics; optional sections say when their CLI flag was not enabled. The viewer reads the file locally, sends no data to a server, and never recalculates AP/AR or comparison deltas. It accepts files up to 128 MiB; a browser may need more memory than the file size. It rejects numeric report IDs outside JavaScript's exact integer range rather than displaying rounded IDs; use a lossless JSON reader for those reports. The viewer is distributed with the source repository, outside the Mooncakes library archive.
+
 From a checkout of this repository, run:
 
 ```sh

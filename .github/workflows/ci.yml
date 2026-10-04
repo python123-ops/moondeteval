@@ -21,6 +21,8 @@ jobs:
         run: moon check --target all --deny-warn
       - name: Test all stable targets
         run: moon test --target all --deny-warn
+      - name: Test read-only report viewer model
+        run: node --test viewer/model.test.cjs
       - name: Validate release archive contents
         run: |
           moon package
@@ -35,7 +37,7 @@ jobs:
           required = {'moon.mod', 'moon.pkg', 'LICENSE', 'README.mbt.md', 'CHANGELOG.md',
                       'pkg.generated.mbti', 'box.mbt', 'evaluation.mbt', 'cli/main.mbt'}
           assert required <= names, required - names
-          assert not any(name.startswith('examples/') for name in names)
+          assert not any(name.startswith(('examples/', 'viewer/')) for name in names)
           assert not any(name in {'AGENTS.md', 'reference_compare.py'} for name in names)
           PY
       - name: Run paired detector demo and quality gates
