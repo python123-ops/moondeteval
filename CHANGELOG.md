@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased (source checkout)
+
+- Local read-only browser viewer for single and paired JSON reports, including paged diagnostics and PR curves.
+- Standard-library Python batch evaluator that runs multiple COCO predictors on one frozen ground-truth input and writes hashed, replayable reports with a comparable index.
+
 ## 0.1.0 — initial release (2026-10-02)
 
 - Reusable MoonBit API for continuous-coordinate COCO bbox evaluation: 12 summary metrics, per-class values, custom IoU thresholds, crowd/area/maxDets behavior, and structured input errors.

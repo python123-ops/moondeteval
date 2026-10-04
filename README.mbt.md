@@ -51,6 +51,14 @@ fn main {
 
 The optional [read-only report viewer](viewer/index.html) opens directly in a browser from a checkout. Generate a JSON file with `--output report.json`, open `viewer/index.html`, and choose that file. It accepts single-model and `--compare` reports with `schema_version=0.1.0`. It shows the existing 12 metrics, class results, per-image changes, PR samples, and paged matching diagnostics; optional sections say when their CLI flag was not enabled. The viewer reads the file locally, sends no data to a server, and never recalculates AP/AR or comparison deltas. It accepts files up to 128 MiB; a browser may need more memory than the file size. It rejects numeric report IDs outside JavaScript's exact integer range rather than displaying rounded IDs; use a lossless JSON reader for those reports. The viewer is distributed with the source repository, outside the Mooncakes library archive.
 
+For more than two COCO prediction files, the source-checkout [batch evaluator](examples/batch_eval.py) evaluates every model against one frozen copy of the same ground-truth JSON and emits an `index.json` plus one full report per model. It records SHA-256 hashes of inputs and reports, exact source paths, replay commands, configuration, 12 metrics, and per-model differences from a named baseline. Undefined `-1` metrics have `null` differences; metrics are never averaged across models. This tool does not infer comparability from unrelated existing report files. Use a new output directory, for example:
+
+```sh
+python examples/batch_eval.py --ground-truth examples/compare-ground-truth.json --model baseline examples/compare-baseline.json --model candidate examples/compare-candidate.json --baseline baseline --image-ranking --pr-curves --output-dir ../moondeteval-batch-results
+```
+
+The index and all reports appear only when the full batch succeeds. Existing output directories are refused. This standard-library Python tool is a development companion to the native CLI, not part of the Mooncakes package.
+
 From a checkout of this repository, run:
 
 ```sh
