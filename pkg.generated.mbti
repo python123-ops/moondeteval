@@ -76,6 +76,19 @@ pub fn ClassMetrics::category_id(Self) -> Int
 pub fn ClassMetrics::metrics(Self) -> Metrics
 pub fn ClassMetrics::to_json(Self) -> Json
 
+pub struct CocoRle {
+  height : Int
+  width : Int
+  counts : Array[Int]
+  foreground_area : Int
+}
+pub fn CocoRle::area(Self) -> Int
+pub fn CocoRle::crowd_iou(Self, Self) -> Double raise EvalError
+pub fn CocoRle::height(Self) -> Int
+pub fn CocoRle::iou(Self, Self) -> Double raise EvalError
+pub fn CocoRle::new(Int, Int, Array[Int]) -> Self raise EvalError
+pub fn CocoRle::width(Self) -> Int
+
 pub struct ComparisonReport {
   schema_version : String
   baseline : EvaluationReport

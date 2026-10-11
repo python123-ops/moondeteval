@@ -17,6 +17,18 @@ The CLI help and argument diagnostics described here are in the current source c
 
 The library accepts validated in-memory images, categories, ground truths, and detections, or COCO-style JSON files. It computes the 12 standard COCO bbox summary metrics and per-category values. Scores are ranked in descending order; equal scores preserve input order within an image/category, while cross-image accumulation follows sorted image IDs, matching the COCO reference. Crowd boxes use intersection over detection area and do not count as positive ground truths. Values of `-1` mean a metric has no eligible ground truths. Boxes use continuous `xywh` coordinates, without pixel-endpoint `+1` or automatic clipping.
 
+The source checkout also provides `CocoRle` as a first step toward mask evaluation. `CocoRle::new(height, width, counts)` accepts **uncompressed** COCO RLE counts: column-major pixels, alternating background/foreground runs, beginning with background (an initial zero run means the first pixel is foreground). It validates that the runs exactly cover one positive-size image of at most 2,147,483,647 pixels. `area()` returns foreground pixels; `iou(other)` returns ordinary mask IoU; `crowd_iou(other)` treats `self` as the detection and `other` as crowd ground truth, dividing intersection by detection area. Both IoU methods reject mismatched image dimensions and return zero for an empty denominator. The implementation processes runs directly and copies constructor input. Compressed COCO RLE strings, polygons, mask AP/AR, and mask JSON/CLI evaluation are **not yet supported**. This source-only API is absent from the published `0.1.0` package. A reproducible 29-pair differential against `pycocotools==2.0.7` is in [mask_rle_reference.py](examples/mask_rle_reference.py).
+
+```moonbit nocheck
+///|
+let detection = @moondeteval.CocoRle::new(3, 4, [1, 2, 2, 3, 4])
+
+///|
+let truth = @moondeteval.CocoRle::new(3, 4, [0, 3, 2, 1, 6])
+// detection.area() == 5; detection.iou(truth) == 0.5
+// detection.crowd_iou(truth) == 0.6
+```
+
 COCO annotation IDs use signed 64-bit integers because real validation annotations can exceed the 32-bit range. The parser accepts integer JSON numbers within that range, rejects fractional or out-of-range IDs, and preserves the exact ID in diagnostics. Report IDs remain JSON numbers. Library callers constructing `GroundTruth` directly now pass an `Int64` ID.
 
 All 12 summary fields are unitless fractions in `[0,1]` when defined, in this order: `ap`, `ap50`, `ap75`, `ap_small`, `ap_medium`, `ap_large`, `ar1`, `ar10`, `ar100`, `ar_small`, `ar_medium`, `ar_large`. `ap` and `ar*` average over the configured IoU thresholds; `ap50` and `ap75` are fixed probes. Each field is `-1` when its category/area has no eligible ground truth, including a dataset with no categories or only crowd truths. In comparison `metrics` arrays use this same order; an undefined side and its `delta` are JSON `null`, while the nested single-model reports retain `-1`. Categories and per-class comparisons follow dataset category order, image summaries follow ascending image ID, and PR curves follow category order then configured ascending IoU threshold. Optional arrays are present but empty when disabled; enabling them does not change summary metrics. JSON object key order is not an API guarantee.

@@ -1,0 +1,9 @@
+import {
+  "python123-ops/moondeteval",
+  "moonbitlang/core/env",
+  "moonbitlang/core/string",
+}
+
+supported_targets = "+native"
+
+pkgtype(kind: "executable")

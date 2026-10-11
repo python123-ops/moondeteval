@@ -37,7 +37,7 @@ jobs:
           with ZipFile(archives[0]) as archive:
               names = set(archive.namelist())
           required = {'moon.mod', 'moon.pkg', 'LICENSE', 'README.mbt.md', 'CHANGELOG.md',
-                      'pkg.generated.mbti', 'box.mbt', 'evaluation.mbt', 'cli/main.mbt'}
+                      'pkg.generated.mbti', 'box.mbt', 'mask_rle.mbt', 'evaluation.mbt', 'cli/main.mbt'}
           assert required <= names, required - names
           assert not any(name.startswith(('examples/', 'viewer/')) for name in names)
           assert not any(name in {'AGENTS.md', 'reference_compare.py'} for name in names)
@@ -65,3 +65,5 @@ jobs:
         run: python -m pip install numpy==1.26.4 pycocotools==2.0.7
       - name: Compare bbox metrics with pycocotools
         run: python reference_compare.py
+      - name: Compare uncompressed mask RLE with pycocotools
+        run: python examples/mask_rle_reference.py
