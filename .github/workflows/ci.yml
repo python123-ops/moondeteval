@@ -54,6 +54,8 @@ jobs:
           moon fmt --check
           moon check --target all --deny-warn
           moon test --target all --deny-warn
+      - name: Verify three exact registry packages without source workspace
+        run: python3 examples/consumer/registry_smoke.py
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'

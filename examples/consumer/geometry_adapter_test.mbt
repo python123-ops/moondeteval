@@ -89,3 +89,54 @@ test "geometry bridge encloses all corners after a slanted transform" {
   let mapped = @consumer.warp_geometry_rect_to_box(rect, slanted)
   assert_eq(mapped.to_xywh(), (10.0, 30.0, 20.0, 20.0))
 }
+
+///|
+test "target-image shear envelope preserves out-of-image coordinates" {
+  let rect = @geometry.Rect2::new(
+    min=@geometry.Point2::new(x=0.0, y=0.0),
+    max=@geometry.Point2::new(x=10.0, y=10.0),
+  )
+  let shear = @multiview.Homography::new(matrix=@geometry.Mat3::{
+    m00: 1.0,
+    m01: 1.0,
+    m02: -5.0,
+    m10: 0.0,
+    m11: 1.0,
+    m12: 2.0,
+    m20: 0.0,
+    m21: 0.0,
+    m22: 1.0,
+  })
+  let mapped = @consumer.warp_geometry_rect_to_box(rect, shear)
+  assert_eq(mapped.to_xywh(), (-5.0, 2.0, 20.0, 10.0))
+  let detection = @moondeteval.Detection::new(9, 42, 7, mapped, 0.9)
+  assert_eq(detection.category_id(), 7)
+  assert_eq(detection.image_id(), 42)
+  assert_eq(detection.bbox().to_xywh(), (-5.0, 2.0, 20.0, 10.0))
+}
+
+///|
+test "geometry bridge rejects nonfinite projected coordinates" {
+  let rect = @geometry.Rect2::new(
+    min=@geometry.Point2::new(x=0.0, y=0.0),
+    max=@geometry.Point2::new(x=10.0, y=10.0),
+  )
+  let invalid = @multiview.Homography::new(matrix=@geometry.Mat3::{
+    m00: 1.0,
+    m01: 0.0,
+    m02: @double.not_a_number,
+    m10: 0.0,
+    m11: 1.0,
+    m12: 0.0,
+    m20: 0.0,
+    m21: 0.0,
+    m22: 1.0,
+  })
+  try @consumer.warp_geometry_rect_to_box(rect, invalid) catch {
+    @moondeteval.InvalidInput(message) =>
+      assert_true(message.contains("project") || message.contains("nonfinite"))
+    _ => fail("wrong error")
+  } noraise {
+    _ => fail("nonfinite transform accepted")
+  }
+}

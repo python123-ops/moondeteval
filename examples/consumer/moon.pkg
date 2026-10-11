@@ -4,3 +4,7 @@ import {
   "python123-ops/moon-cv-geometry/core" @geometry,
   "python123-ops/moon-cv-geometry/multiview",
 }
+
+import {
+  "moonbitlang/core/double",
+} for "test"

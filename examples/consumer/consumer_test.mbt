@@ -48,3 +48,117 @@ test "MBMOT detector frame adapts without tracking-state coupling" {
   )
   assert_eq(@moondeteval.evaluate(dataset, predictions).summary().ap50(), 1.0)
 }
+
+///|
+test "two MBMOT frames preserve image and category mapping with unique IDs" {
+  let box1 = @mbmot.BoundingBox::from_xywh(0.0, 0.0, 10.0, 10.0)
+  let box2 = @mbmot.BoundingBox::from_xywh(20.0, 5.0, 8.0, 8.0)
+  let first = @mbmot.Detection::new(box1, 0.9, 5)
+  let second = @mbmot.Detection::new(box2, 0.8, 6)
+  let predictions = @consumer.adapt_mbmot_frames(
+    [(11, [first]), (29, [second])],
+    [(5, 7), (6, 8)],
+    40,
+  )
+  assert_eq(predictions.length(), 2)
+  assert_eq(
+    (
+      predictions[0].id(),
+      predictions[0].image_id(),
+      predictions[0].category_id(),
+    ),
+    (40, 11, 7),
+  )
+  assert_eq(
+    (
+      predictions[1].id(),
+      predictions[1].image_id(),
+      predictions[1].category_id(),
+    ),
+    (41, 29, 8),
+  )
+  let truth1 = @moondeteval.Box::from_xywh(0.0, 0.0, 10.0, 10.0)
+  let truth2 = @moondeteval.Box::from_xywh(20.0, 5.0, 8.0, 8.0)
+  let dataset = @moondeteval.Dataset::new(
+    [
+      @moondeteval.Image::new(11, 100, 100),
+      @moondeteval.Image::new(29, 100, 100),
+    ],
+    [
+      @moondeteval.Category::new(7, "person"),
+      @moondeteval.Category::new(8, "bike"),
+    ],
+    [
+      @moondeteval.GroundTruth::new(101, 11, 7, truth1, area=100.0),
+      @moondeteval.GroundTruth::new(102, 29, 8, truth2, area=64.0),
+    ],
+  )
+  let direct = [
+    @moondeteval.Detection::new(40, 11, 7, truth1, 0.9),
+    @moondeteval.Detection::new(41, 29, 8, truth2, 0.8),
+  ]
+  let config = @moondeteval.EvalConfig::new(
+    @moondeteval.EvalConfig::coco().iou_thresholds(),
+    include_image_summaries=true,
+  )
+  let adapted = @moondeteval.evaluate_with_config(dataset, predictions, config)
+  let reference = @moondeteval.evaluate_with_config(dataset, direct, config)
+  assert_eq(adapted.summary().ap50(), 1.0)
+  assert_eq(adapted.summary().to_json(), reference.summary().to_json())
+  assert_eq(
+    adapted.image_summaries().to_json(),
+    reference.image_summaries().to_json(),
+  )
+  assert_eq(adapted.image_summaries().length(), 2)
+}
+
+///|
+test "MBMOT bridge rejects mapping ambiguity, repeated frames, and ID overflow" {
+  let box = @mbmot.BoundingBox::from_xywh(0.0, 0.0, 10.0, 10.0)
+  let detection = @mbmot.Detection::new(box, 0.9, 5)
+  try
+    @consumer.adapt_mbmot_frames([(1, [detection])], [(5, 7), (5, 8)], 0)
+  catch {
+    @moondeteval.InvalidInput(message) =>
+      assert_true(message.contains("duplicate MBMOT class"))
+    _ => fail("wrong error")
+  } noraise {
+    _ => fail("ambiguous mapping accepted")
+  }
+  try @consumer.adapt_mbmot_frames([(1, [detection])], [(6, 7)], 0) catch {
+    @moondeteval.InvalidInput(message) =>
+      assert_true(message.contains("unmapped MBMOT class"))
+    _ => fail("wrong error")
+  } noraise {
+    _ => fail("unmapped class accepted")
+  }
+  try
+    @consumer.adapt_mbmot_frames([(1, [detection]), (1, [])], [(5, 7)], 0)
+  catch {
+    @moondeteval.InvalidInput(message) =>
+      assert_true(message.contains("duplicate MBMOT frame"))
+    _ => fail("wrong error")
+  } noraise {
+    _ => fail("repeated frame accepted")
+  }
+  try
+    @consumer.adapt_mbmot_frames(
+      [(1, [detection, detection])],
+      [(5, 7)],
+      2147483647,
+    )
+  catch {
+    @moondeteval.InvalidInput(message) =>
+      assert_true(message.contains("ID exceeds"))
+    _ => fail("wrong error")
+  } noraise {
+    _ => fail("overflowing ID accepted")
+  }
+  try @consumer.adapt_mbmot_frame(1, 2147483647, [detection, detection]) catch {
+    @moondeteval.InvalidInput(message) =>
+      assert_true(message.contains("ID exceeds"))
+    _ => fail("wrong error")
+  } noraise {
+    _ => fail("single-frame overflowing ID accepted")
+  }
+}
