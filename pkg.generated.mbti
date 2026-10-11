@@ -6,11 +6,19 @@ import {
 }
 
 // Values
+pub fn compare_mask_predictions(MaskDataset, Array[MaskDetection], Array[MaskDetection]) -> ComparisonReport raise EvalError
+
+pub fn compare_mask_predictions_with_config(MaskDataset, Array[MaskDetection], Array[MaskDetection], EvalConfig) -> ComparisonReport raise EvalError
+
 pub fn compare_predictions(Dataset, Array[Detection], Array[Detection]) -> ComparisonReport raise EvalError
 
 pub fn compare_predictions_with_config(Dataset, Array[Detection], Array[Detection], EvalConfig) -> ComparisonReport raise EvalError
 
 pub fn evaluate(Dataset, Array[Detection]) -> EvaluationReport raise EvalError
+
+pub fn evaluate_masks(MaskDataset, Array[MaskDetection]) -> EvaluationReport raise EvalError
+
+pub fn evaluate_masks_with_config(MaskDataset, Array[MaskDetection], EvalConfig) -> EvaluationReport raise EvalError
 
 pub fn evaluate_with_config(Dataset, Array[Detection], EvalConfig) -> EvaluationReport raise EvalError
 
@@ -19,6 +27,10 @@ pub fn evaluate_with_diagnostics(Dataset, Array[Detection]) -> EvaluationReport 
 pub fn parse_coco_dataset(String) -> Dataset raise EvalError
 
 pub fn parse_coco_detections(String) -> Array[Detection] raise EvalError
+
+pub fn parse_coco_mask_dataset(String) -> MaskDataset raise EvalError
+
+pub fn parse_coco_mask_detections(String) -> Array[MaskDetection] raise EvalError
 
 pub fn parse_coco_rle(String) -> CocoRle raise EvalError
 
@@ -83,14 +95,17 @@ pub struct CocoRle {
   width : Int
   counts : Array[Int]
   foreground_area : Int
-}
+} derive(Eq, @debug.Debug)
 pub fn CocoRle::area(Self) -> Int
 pub fn CocoRle::crowd_iou(Self, Self) -> Double raise EvalError
+pub fn CocoRle::equal(Self, Self) -> Bool
 pub fn CocoRle::from_compressed(Int, Int, String) -> Self raise EvalError
 pub fn CocoRle::height(Self) -> Int
 pub fn CocoRle::iou(Self, Self) -> Double raise EvalError
 pub fn CocoRle::new(Int, Int, Array[Int]) -> Self raise EvalError
+pub fn CocoRle::not_equal(Self, Self) -> Bool
 pub fn CocoRle::to_compressed(Self) -> String
+pub fn CocoRle::to_repr(Self) -> @debug.Repr
 pub fn CocoRle::width(Self) -> Int
 
 pub struct ComparisonReport {
@@ -124,6 +139,7 @@ pub struct Detection {
   image_id : Int
   category_id : Int
   bbox : Box
+  mask : CocoRle?
   score : Double
 } derive(Eq, @debug.Debug)
 pub fn Detection::bbox(Self) -> Box
@@ -155,6 +171,7 @@ pub fn EvalConfig::to_json(Self) -> Json
 pub struct EvaluationReport {
   schema_version : String
   evaluator_version : String
+  iou_type : String
   config : EvalConfig
   counts : InputCounts
   summary : Metrics
@@ -164,25 +181,28 @@ pub struct EvaluationReport {
   recall_thresholds : Array[Double]
   pr_curves : Array[PrecisionRecallCurve]
   quality_warnings : Array[QualityWarning]
-} derive(ToJson)
+}
 pub fn EvaluationReport::classes(Self) -> Array[ClassMetrics]
 pub fn EvaluationReport::config(Self) -> EvalConfig
 pub fn EvaluationReport::counts(Self) -> InputCounts
 pub fn EvaluationReport::diagnostics(Self) -> Array[MatchDiagnostic]
 pub fn EvaluationReport::evaluator_version(Self) -> String
 pub fn EvaluationReport::image_summaries(Self) -> Array[ImageSummary]
+pub fn EvaluationReport::iou_type(Self) -> String
 pub fn EvaluationReport::pr_curves(Self) -> Array[PrecisionRecallCurve]
 pub fn EvaluationReport::quality_warnings(Self) -> Array[QualityWarning]
 pub fn EvaluationReport::recall_thresholds(Self) -> Array[Double]
 pub fn EvaluationReport::summary(Self) -> Metrics
 pub fn EvaluationReport::to_json(Self) -> Json
 pub fn EvaluationReport::to_json_string(Self) -> String
+pub impl ToJson for EvaluationReport
 
 pub struct GroundTruth {
   id : Int64
   image_id : Int
   category_id : Int
   bbox : Box
+  mask : CocoRle?
   area : Double
   iscrowd : Bool
   ignore : Bool
@@ -251,6 +271,36 @@ pub fn InputCounts::evaluated_detections(Self) -> Int
 pub fn InputCounts::ground_truths(Self) -> Int
 pub fn InputCounts::images(Self) -> Int
 pub fn InputCounts::to_json(Self) -> Json
+
+pub struct MaskDataset {
+  value : Dataset
+}
+pub fn MaskDataset::categories(Self) -> Array[Category]
+pub fn MaskDataset::images(Self) -> Array[Image]
+pub fn MaskDataset::new(Array[Image], Array[Category], Array[MaskGroundTruth]) -> Self raise EvalError
+pub fn MaskDataset::truths(Self) -> Array[MaskGroundTruth]
+
+pub struct MaskDetection {
+  value : Detection
+}
+pub fn MaskDetection::category_id(Self) -> Int
+pub fn MaskDetection::id(Self) -> Int
+pub fn MaskDetection::image_id(Self) -> Int
+pub fn MaskDetection::mask(Self) -> CocoRle
+pub fn MaskDetection::new(Int, Int, Int, CocoRle, Double) -> Self raise EvalError
+pub fn MaskDetection::score(Self) -> Double
+
+pub struct MaskGroundTruth {
+  value : GroundTruth
+}
+pub fn MaskGroundTruth::area(Self) -> Double
+pub fn MaskGroundTruth::category_id(Self) -> Int
+pub fn MaskGroundTruth::id(Self) -> Int64
+pub fn MaskGroundTruth::ignore(Self) -> Bool
+pub fn MaskGroundTruth::image_id(Self) -> Int
+pub fn MaskGroundTruth::iscrowd(Self) -> Bool
+pub fn MaskGroundTruth::mask(Self) -> CocoRle
+pub fn MaskGroundTruth::new(Int64, Int, Int, CocoRle, area~ : Double, iscrowd? : Bool, ignore? : Bool) -> Self raise EvalError
 
 pub struct MatchDiagnostic {
   iou_threshold : Double

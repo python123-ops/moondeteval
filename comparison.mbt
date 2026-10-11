@@ -216,6 +216,14 @@ pub fn compare_predictions_with_config(
 ) -> ComparisonReport raise EvalError {
   let left = evaluate_with_config(dataset, baseline, config)
   let right = evaluate_with_config(dataset, candidate, config)
+  compare_reports(left, right)
+}
+
+///|
+fn compare_reports(
+  left : EvaluationReport,
+  right : EvaluationReport,
+) -> ComparisonReport {
   let classes : Array[ClassComparison] = []
   for index in 0..<left.classes.length() {
     classes.push({

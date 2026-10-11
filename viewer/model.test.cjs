@@ -67,3 +67,20 @@ test('unsafe 64-bit diagnostic IDs are rejected instead of silently rounded', ()
   base.diagnostics[0].ground_truth_id = 9007199254740992;
   assert.throws(() => api.parseReport(JSON.stringify(base)), /无损 JSON 工具/);
 });
+
+test('real mask comparison retains geometry and rejects mixed or unknown types', () => {
+  const text = execFileSync('moon', [...args, 'examples/mask-ground-truth.json',
+    'examples/mask-baseline.json', '--iou-type', 'segm', '--compare',
+    'examples/mask-candidate.json', '--image-ranking', '--pr-curves'],
+    { cwd: root, encoding: 'utf8' });
+  const model = api.parseReport(text);
+  assert.equal(api.iouType(model), 'segm');
+  assert.equal(api.iouType(api.parseReport(report())), 'bbox');
+  assert.equal(api.overallMetrics(model).find(x => x.name === 'ap').delta, 1);
+  assert.equal(api.curveData(model, 'candidate', 0).precision.length, 101);
+  const mixed = JSON.parse(text);
+  delete mixed.baseline.iou_type;
+  assert.throws(() => api.parseReport(JSON.stringify(mixed)), /评测类型不同/);
+  mixed.baseline.iou_type = 'unknown';
+  assert.throws(() => api.parseReport(JSON.stringify(mixed)), /iou_type/);
+});

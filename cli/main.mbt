@@ -15,9 +15,9 @@ fn usage() -> String {
 ///|
 fn help_text() -> String {
   usage() +
-  "\n\nEvaluate COCO bbox predictions or a YOLO manifest against one ground-truth file.\n" +
+  "\n\nEvaluate COCO bbox/mask predictions or a YOLO bbox manifest against one ground-truth file.\n" +
   "\nInputs:\n  ground-truth.json            COCO ground truths\n  detections.json|manifest.json  COCO detections or YOLO manifest\n" +
-  "\nOptions:\n  --prediction-format coco|yolo  Prediction input format (default: coco)\n  --compare OTHER.json          Compare a second prediction file\n  --compare-format coco|yolo     Second prediction format (default: coco)\n  --diagnostics                 Include matching decisions\n  --image-ranking               Include per-image results\n  --pr-curves                   Include precision-recall curves\n  --timings                     Print stage timings to stderr\n  --min-ap50 N                  Fail if AP50 is below N\n  --fail-on-warning             Fail on out-of-image warnings\n  --output PATH                 Write report to a new file\n  --max-input-bytes N           Limit each input file\n  --max-total-input-bytes N     Limit combined input size\n  --max-records N               Limit input records\n  --max-diagnostics N           Limit diagnostic entries\n  --max-report-bytes N          Limit report size\n  -h, --help                    Show this help\n" +
+  "\nOptions:\n  --iou-type bbox|segm          Evaluation geometry (default: bbox; segm requires COCO RLE)\n  --prediction-format coco|yolo  Prediction input format (default: coco)\n  --compare OTHER.json          Compare a second prediction file\n  --compare-format coco|yolo     Second prediction format (default: coco)\n  --diagnostics                 Include matching decisions\n  --image-ranking               Include per-image results\n  --pr-curves                   Include precision-recall curves\n  --timings                     Print stage timings to stderr\n  --min-ap50 N                  Fail if AP50 is below N\n  --fail-on-warning             Fail on out-of-image warnings\n  --output PATH                 Write report to a new file\n  --max-input-bytes N           Limit each input file\n  --max-total-input-bytes N     Limit combined input size\n  --max-records N               Limit input records\n  --max-diagnostics N           Limit diagnostic entries\n  --max-report-bytes N          Limit report size\n  -h, --help                    Show this help\n" +
   "\nExamples (from source checkout):\n  moon run cli --target native -- examples/ground-truth.json examples/detections.json\n  moon run cli --target native -- examples/yolo/ground-truth.json examples/yolo/manifest.json --prediction-format yolo\n" +
   "\nExit codes: 0 success; 2 invalid input or usage; 3 quality gate failure.\n"
 }
@@ -50,6 +50,8 @@ async fn main {
   let mut show_timings = false
   let mut fail_on_warning = false
   let mut comparison_path : String? = None
+  let mut iou_type = "bbox"
+  let mut seen_iou_type = false
   let mut prediction_format = "coco"
   let mut comparison_format = "coco"
   let mut seen_prediction_format = false
@@ -64,6 +66,17 @@ async fn main {
   let mut index = 3
   while index < arguments.length() {
     match arguments[index] {
+      "--iou-type" => {
+        if seen_iou_type ||
+          index + 1 >= arguments.length() ||
+          (arguments[index + 1] != "bbox" && arguments[index + 1] != "segm") {
+          fail_command("--iou-type requires bbox or segm, once", 2)
+          return
+        }
+        iou_type = arguments[index + 1]
+        seen_iou_type = true
+        index += 2
+      }
       "--diagnostics" => {
         if include_diagnostics {
           fail_command("--diagnostics may only be given once", 2)
@@ -209,6 +222,16 @@ async fn main {
     fail_command("--compare-format requires --compare", 2)
     return
   }
+  if iou_type == "segm" &&
+    (
+      prediction_format != "coco" ||
+      (comparison_path is Some(_) && comparison_format != "coco")
+    ) {
+    fail_command(
+      "--iou-type segm requires COCO RLE predictions; YOLO supports bbox only", 2,
+    )
+    return
+  }
   match output_path {
     Some(path) => {
       if path == arguments[1] || path == arguments[2] {
@@ -254,18 +277,12 @@ async fn main {
     input_bytes += size
     sources.push(content)
   }
-  let ground_truth = sources[0]
-  let dataset = @moondeteval.parse_coco_dataset(ground_truth) catch {
-    error => {
-      fail_command("ground truth " + arguments[1] + ": " + error.message(), 2)
-      return
-    }
-  }
-  let (predictions, prediction_bytes) = load_predictions(
-    sources[1],
-    arguments[2],
+  let (input, extra_bytes) = load_evaluation_input(
+    sources,
+    input_paths,
+    iou_type,
     prediction_format,
-    dataset,
+    comparison_format,
     max_input_bytes,
     max_total_input_bytes.to_int64() - input_bytes,
     max_records,
@@ -275,35 +292,21 @@ async fn main {
       return
     }
   }
-  input_bytes += prediction_bytes
-  let comparison_predictions = if sources.length() == 3 {
-    let (parsed, comparison_bytes) = load_predictions(
-      sources[2],
-      input_paths[2],
-      comparison_format,
-      dataset,
-      max_input_bytes,
-      max_total_input_bytes.to_int64() - input_bytes,
-      max_records,
-    ) catch {
-      error => {
-        fail_command(error.message(), 2)
-        return
-      }
-    }
-    input_bytes += comparison_bytes
-    Some(parsed)
+  input_bytes += extra_bytes
+  let (
+    metadata_records,
+    truth_records,
+    prediction_records,
+    comparison_records_with_truths,
+  ) = input.sizes()
+  let comparison_records = if sources.length() == 3 {
+    comparison_records_with_truths - truth_records
   } else {
-    None
+    0
   }
-  let comparison_records = match comparison_predictions {
-    Some(other) => other.length()
-    None => 0
-  }
-  let records = dataset.images().length() +
-    dataset.categories().length() +
-    dataset.truths().length() +
-    predictions.length() +
+  let records = metadata_records +
+    truth_records +
+    prediction_records +
     comparison_records
   if records > max_records {
     fail_command(
@@ -312,14 +315,9 @@ async fn main {
     )
     return
   }
-  let comparison_diagnostic_records = if comparison_predictions is Some(_) {
-    comparison_records + dataset.truths().length()
-  } else {
-    0
-  }
-  let diagnostic_records = predictions.length() +
-    dataset.truths().length() +
-    comparison_diagnostic_records
+  let diagnostic_records = prediction_records +
+    truth_records +
+    comparison_records_with_truths
   if include_diagnostics &&
     diagnostic_records.to_int64() * 10L > max_diagnostics.to_int64() {
     fail_command(
@@ -337,19 +335,17 @@ async fn main {
     evaluation_us,
     serialization_us,
   ) = try {
-    match comparison_predictions {
-      Some(other) => {
-        let config = @moondeteval.EvalConfig::new(
-          @moondeteval.EvalConfig::coco().iou_thresholds(),
-          include_diagnostics~,
-          include_image_summaries~,
-          include_pr_curves~,
-        )
-        let evaluation_timer = @bench.monotonic_clock_start()
-        let comparison = @moondeteval.compare_predictions_with_config(
-          dataset, predictions, other, config,
-        )
-        let evaluation_us = @bench.monotonic_clock_end(evaluation_timer)
+    let config = @moondeteval.EvalConfig::new(
+      @moondeteval.EvalConfig::coco().iou_thresholds(),
+      include_diagnostics~,
+      include_image_summaries~,
+      include_pr_curves~,
+    )
+    let evaluation_timer = @bench.monotonic_clock_start()
+    let evaluated = input.evaluate(config)
+    let evaluation_us = @bench.monotonic_clock_end(evaluation_timer)
+    match evaluated {
+      Paired(comparison) => {
         let baseline = comparison.baseline()
         let candidate = comparison.candidate()
         let mut warning_count = baseline.quality_warnings().length()
@@ -370,18 +366,7 @@ async fn main {
           serialization_us,
         )
       }
-      None => {
-        let config = @moondeteval.EvalConfig::new(
-          @moondeteval.EvalConfig::coco().iou_thresholds(),
-          include_diagnostics~,
-          include_image_summaries~,
-          include_pr_curves~,
-        )
-        let evaluation_timer = @bench.monotonic_clock_start()
-        let report = @moondeteval.evaluate_with_config(
-          dataset, predictions, config,
-        )
-        let evaluation_us = @bench.monotonic_clock_end(evaluation_timer)
+      Single(report) => {
         let serialization_timer = @bench.monotonic_clock_start()
         let report_json = report.to_json_string()
         let serialization_us = @bench.monotonic_clock_end(serialization_timer)

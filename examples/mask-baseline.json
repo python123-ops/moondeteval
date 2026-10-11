@@ -1,0 +1,18 @@
+[
+  {
+    "image_id": 1,
+    "category_id": 1,
+    "score": 0.9,
+    "segmentation": {
+      "size": [
+        2,
+        2
+      ],
+      "counts": [
+        1,
+        2,
+        1
+      ]
+    }
+  }
+]

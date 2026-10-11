@@ -1,6 +1,6 @@
 # MoonDetEval
 
-MoonDetEval is a MoonBit library and native CLI for detector-independent, continuous-coordinate bounding-box evaluation. It is a separate October 2026 project from [MBMOT](https://github.com/python123-ops/mbmot), which measures multi-object tracking.
+MoonDetEval is a MoonBit library and native CLI for detector-independent bounding-box and RLE instance-mask evaluation. It is a separate October 2026 project from [MBMOT](https://github.com/python123-ops/mbmot), which measures multi-object tracking.
 
 Choose an entry point:
 
@@ -17,11 +17,11 @@ The CLI help and argument diagnostics described here are in the current source c
 
 The library accepts validated in-memory images, categories, ground truths, and detections, or COCO-style JSON files. It computes the 12 standard COCO bbox summary metrics and per-category values. Scores are ranked in descending order; equal scores preserve input order within an image/category, while cross-image accumulation follows sorted image IDs, matching the COCO reference. Crowd boxes use intersection over detection area and do not count as positive ground truths. Values of `-1` mean a metric has no eligible ground truths. Boxes use continuous `xywh` coordinates, without pixel-endpoint `+1` or automatic clipping.
 
-The source checkout also provides `CocoRle` as a first step toward mask evaluation. `CocoRle::new(height, width, counts)` accepts uncompressed COCO RLE counts: column-major pixels, alternating background/foreground runs, beginning with background (an initial zero run means the first pixel is foreground). It validates that the runs exactly cover one positive-size image of at most 2,147,483,647 pixels. `area()` returns foreground pixels; `iou(other)` returns ordinary mask IoU; `crowd_iou(other)` treats `self` as the detection and `other` as crowd ground truth, dividing intersection by detection area. Both IoU methods reject mismatched image dimensions and return zero for an empty denominator. The implementation processes runs directly and copies constructor input.
+The source checkout also provides `CocoRle` for mask evaluation. `CocoRle::new(height, width, counts)` accepts uncompressed COCO RLE counts: column-major pixels, alternating background/foreground runs, beginning with background (an initial zero run means the first pixel is foreground). It validates that the runs exactly cover one positive-size image of at most 2,147,483,647 pixels. `area()` returns foreground pixels; `iou(other)` returns ordinary mask IoU; `crowd_iou(other)` treats `self` as the detection and `other` as crowd ground truth, dividing intersection by detection area. Both IoU methods reject mismatched image dimensions and return zero for an empty denominator. The implementation processes runs directly and copies constructor input.
 
 `CocoRle::from_compressed(height, width, counts)` reads COCO ASCII compressed counts, including signed run differences; `to_compressed()` exports the stored run sequence in the same format. Reading rejects invalid characters, truncated groups, runs needing more than seven characters, negative reconstructed runs, and lengths exceeding the image. Character positions in errors are zero-based. `parse_coco_rle(source)` accepts one segmentation RLE JSON object with `size: [height, width]` and `counts` as either a run array or a compressed string. Sizes and array entries must decode to nonnegative integer-valued numbers within the Int range. It uses the core JSON parser's numeric and duplicate-key behavior; producers should emit integer tokens and unique keys. The parser handles JSON escaping, including backslashes within counts.
 
-These source-only APIs are absent from the published `0.1.0` package. Polygon rasterization, mask AP/AR, and full mask dataset/CLI evaluation remain future work. The [differential script](examples/mask_rle_reference.py) checks 35 fixed/seeded mask pairs in three input forms against `pycocotools==2.0.7`, including byte-for-byte compressed exports. Int-limit codec cases use explicit MoonBit fixtures: the Windows reference C decoder mishandles some large signed differences, so they are outside this script's reference geometry claim.
+These source-only APIs are absent from the published `0.1.0` package. The source checkout now evaluates RLE mask AP/AR through the library and native CLI. Polygon rasterization remains outside its input contract. The [differential script](examples/mask_rle_reference.py) checks 35 fixed/seeded mask pairs in three input forms against `pycocotools==2.0.7`, including byte-for-byte compressed exports. Int-limit codec cases use explicit MoonBit fixtures: the Windows reference C decoder mishandles some large signed differences, so they are outside this script's reference geometry claim.
 
 ```moonbit nocheck
 ///|
@@ -48,6 +48,38 @@ COCO JSON errors identify the source file (in CLI messages), record index, and d
 The implementation is **under compatibility validation**. The [differential script](https://github.com/python123-ops/moondeteval/blob/main/reference_compare.py) checks all 12 summary metrics, per-image matches, and exported 101-point precision/recall at all 10 default IoU thresholds against `pycocotools==2.0.7` on nine synthetic scenarios. These include explicit `ignore`, crowd, empty detections, `maxDets=100`, area and IoU boundaries, score ties within and across images, out-of-image boxes, and fixed-seed mixed images. This is stronger evidence for the covered bbox cases, but does not establish full COCO equivalence.
 
 In the default `coco_bbox` mode, COCO bbox evaluation uses `iscrowd` to determine whether a ground truth is ignored, even when the source annotation contains `ignore=1`. The input flag remains available in the model. Callers who need that flag to affect matching can construct `EvalConfig::new(..., ignore_policy="respect_explicit")`; the chosen policy is recorded in the report. The latter is a MoonDetEval extension, not a COCO compatibility claim.
+
+## RLE mask evaluation (source checkout)
+
+Use `parse_coco_mask_dataset`, `parse_coco_mask_detections`, and `evaluate_masks` for segmentation-only COCO JSON, or construct `MaskGroundTruth`, `MaskDetection`, and `MaskDataset` from validated `CocoRle` values. Both compressed strings and uncompressed run arrays are supported for ground truths and predictions. Every mask must have `size=[image.height,image.width]`; malformed RLE, duplicate IDs, unknown references, missing segmentation and polygon arrays are rejected. Scores must be finite. Empty masks are valid; their overlap is zero, so an empty regular truth remains eligible and cannot match.
+
+Mask matching uses foreground intersection/union, or intersection/detection foreground area for crowd. It uses the same stable ranking, ignored-truth priority, maxDets 1/10/100, area intervals, ten default IoUs and 101-point interpolation as bbox evaluation. GT `area` is required and retained from the annotation, even when it differs from the RLE pixel count. Prediction area always comes from the RLE; supplied `bbox` and `area` fields are ignored. For comparable `pycocotools` reference inputs, remove prediction `bbox`: `COCO.loadRes` prioritizes its bbox branch and otherwise overwrites detection area with box area.
+
+`evaluate_masks_with_config` and `compare_mask_predictions_with_config` support custom IoU thresholds, diagnostics, image summaries and PR curves. The default `EvalConfig::coco()` is normalized to `ignore_policy="coco_segm"` in a mask report; both COCO policies use `iscrowd` to ignore GT. You may explicitly construct `EvalConfig::new(..., ignore_policy="coco_segm")`, or opt into `respect_explicit`. Bbox entry points reject the segm policy. Reports reuse schema `0.1.0` and add `iou_type="segm"`; bbox JSON retains its original fields, and `report.iou_type()` returns `bbox` or `segm`. Comparisons contain this marker in both nested reports. The viewer labels mask AP and rejects mixed bbox/segm comparisons. Python batch evaluation currently remains bbox-only.
+
+```moonbit nocheck
+///|
+let masks = @moondeteval.parse_coco_mask_dataset(ground_truth_json)
+
+///|
+let predictions = @moondeteval.parse_coco_mask_detections(detections_json)
+
+///|
+let report = @moondeteval.evaluate_masks(masks, predictions)
+
+///|
+let comparison = @moondeteval.compare_mask_predictions(
+  masks, predictions, other_predictions,
+)
+```
+
+```sh
+moon run cli --target native -- examples/mask-ground-truth.json examples/mask-baseline.json --iou-type segm --compare examples/mask-candidate.json --diagnostics --image-ranking --pr-curves --min-ap50 1
+```
+
+The checked-in 2×2 example uses masks with identical enclosing boxes and disjoint foregrounds. Its baseline AP is `0`, candidate AP is `1`, and candidate-minus-baseline image error count is `-2`. Add `--output PATH` to write a new report. All existing CLI limits and output/quality gates apply; `--iou-type` defaults to `bbox`, and `segm` rejects YOLO inputs. This is evaluation of supplied masks, with no inference or polygon conversion dependency.
+
+The [mask AP differential script](examples/mask_ap_reference.py) verifies 43 synthetic cases (19 fixed boundary cases and 24 seeded cases, seed `20261012`) against `COCOeval(iouType="segm")` from `pycocotools==2.0.7`. It checks all 12 summary and per-class metrics, 68,680 exported PR samples, 7,646 diagnostic entries and per-image results, at absolute tolerance `1e-9`, plus real-process CLI failures and paired output. This establishes the tested RLE evaluation behavior; it is not a claim of all COCO segmentation input support. These APIs are unreleased and are not in the Mooncakes `0.1.0` package.
 
 ## Related packages
 
@@ -82,7 +114,7 @@ fn main {
 
 ## Run the source examples
 
-The optional [read-only report viewer](viewer/index.html) opens directly in a browser from a checkout. Generate a JSON file with `--output report.json`, open `viewer/index.html`, and choose that file. It accepts single-model and `--compare` reports with `schema_version=0.1.0`. It shows the existing 12 metrics, class results, per-image changes, PR samples, and paged matching diagnostics; optional sections say when their CLI flag was not enabled. The viewer reads the file locally, sends no data to a server, and never recalculates AP/AR or comparison deltas. It accepts files up to 128 MiB; a browser may need more memory than the file size. It rejects numeric report IDs outside JavaScript's exact integer range rather than displaying rounded IDs; use a lossless JSON reader for those reports. The viewer is distributed with the source repository, outside the Mooncakes library archive.
+The optional [read-only report viewer](viewer/index.html) opens directly in a browser from a checkout. Generate a JSON file with `--output report.json`, open `viewer/index.html`, and choose that file. It accepts bbox or RLE mask single-model and `--compare` reports with `schema_version=0.1.0`. It shows the existing 12 metrics, class results, per-image changes, PR samples, and paged matching diagnostics; optional sections say when their CLI flag was not enabled. The viewer reads the file locally, sends no data to a server, and never recalculates AP/AR or comparison deltas. It accepts files up to 128 MiB; a browser may need more memory than the file size. It rejects numeric report IDs outside JavaScript's exact integer range rather than displaying rounded IDs; use a lossless JSON reader for those reports. The viewer is distributed with the source repository, outside the Mooncakes library archive.
 
 For more than two COCO prediction files, the source-checkout [batch evaluator](examples/batch_eval.py) evaluates every model against one frozen copy of the same ground-truth JSON and emits an `index.json` plus one full report per model. It records SHA-256 hashes of inputs and reports, exact source paths, replay commands, configuration, 12 metrics, and per-model differences from a named baseline. Undefined `-1` metrics have `null` differences; metrics are never averaged across models. This tool does not infer comparability from unrelated existing report files. Use a new output directory, for example:
 
@@ -231,10 +263,11 @@ python examples/yolo_manifest_demo.py
 python -m pip install numpy==1.26.4 pycocotools==2.0.7
 python reference_compare.py
 python examples/mask_rle_reference.py
+python examples/mask_ap_reference.py
 ```
 
 `pycocotools` is used only for development comparison; the MoonBit library does not depend on Python. The native CLI uses `moonbitlang/async@0.21.3` for file access.
 
 ## License and attribution
 
-MoonDetEval is Apache-2.0. COCO's [official bbox evaluator](https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocotools/cocoeval.py) and [mask encoding API](https://github.com/cocodataset/cocoapi/blob/master/common/maskApi.c) are behavioral and format references; their source code is not copied here. The [COCO API license](https://github.com/cocodataset/cocoapi/blob/master/license.txt) is separate from this repository's license. `pycocotools==2.0.7` and NumPy are development-only reference tools, while the CLI's MoonBit runtime dependency is `moonbitlang/async@0.21.3`. The checked-in example data is synthetic. Real COCO images/annotations and YOLO model weights used for external validation are not bundled or redistributed in this repository.
+MoonDetEval is Apache-2.0. COCO's [official evaluator](https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocotools/cocoeval.py) and [mask encoding API](https://github.com/cocodataset/cocoapi/blob/master/common/maskApi.c) are behavioral and format references; their source code is not copied here. The [COCO API license](https://github.com/cocodataset/cocoapi/blob/master/license.txt) is separate from this repository's license. `pycocotools==2.0.7` and NumPy are development-only reference tools, while the CLI's MoonBit runtime dependency is `moonbitlang/async@0.21.3`. The checked-in example data is synthetic. Real COCO images/annotations and YOLO model weights used for external validation are not bundled or redistributed in this repository.

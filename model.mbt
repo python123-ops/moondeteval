@@ -72,6 +72,7 @@ pub struct GroundTruth {
   image_id : Int
   category_id : Int
   bbox : Box
+  mask : CocoRle?
   area : Double
   iscrowd : Bool
   ignore : Bool
@@ -96,7 +97,7 @@ pub fn GroundTruth::new(
   if !finite(area) || area < 0.0 {
     raise InvalidInput("ground-truth area must be finite and nonnegative")
   }
-  { id, image_id, category_id, bbox, area, iscrowd, ignore, }
+  { id, image_id, category_id, bbox, mask: None, area, iscrowd, ignore, }
 }
 
 ///|
@@ -141,6 +142,7 @@ pub struct Detection {
   image_id : Int
   category_id : Int
   bbox : Box
+  mask : CocoRle?
   score : Double
 } derive(Debug, Eq)
 
@@ -161,7 +163,7 @@ pub fn Detection::new(
   if !finite(score) {
     raise InvalidInput("detection score must be finite")
   }
-  { id, image_id, category_id, bbox, score, }
+  { id, image_id, category_id, bbox, mask: None, score, }
 }
 
 ///|

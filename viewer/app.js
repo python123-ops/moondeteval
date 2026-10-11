@@ -51,7 +51,7 @@
   function renderOverview(fileName) {
     const model = state.model;
     const reports = api.sides(model);
-    $("report-meta").textContent = `${fileName} · ${model.kind === "comparison" ? "双模型比较" : "单模型评测"} · schema ${model.raw.schema_version}`;
+    $("report-meta").textContent = `${fileName} · ${model.kind === "comparison" ? "双模型比较" : "单模型评测"} · ${api.iouType(model) === "segm" ? "mask AP" : "bbox AP"} · schema ${model.raw.schema_version}`;
     const counts = $("report-counts");
     counts.replaceChildren();
     for (const { label, report } of reports) {

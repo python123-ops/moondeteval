@@ -93,6 +93,11 @@ pub fn parse_coco_rle(source : String) -> CocoRle raise EvalError {
   let value = @json.parse(source) catch {
     _ => raise InvalidInput("mask RLE is not valid JSON")
   }
+  parse_rle_value(value)
+}
+
+///|
+fn parse_rle_value(value : Json) -> CocoRle raise EvalError {
   guard value is Object(fields) else {
     raise InvalidInput("mask RLE must be an object with size and counts")
   }

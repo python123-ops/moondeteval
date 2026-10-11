@@ -39,6 +39,9 @@
     if (!object(value.summary) || !object(value.config) || !object(value.counts)) {
       throw new Error(`${name} 缺少 summary、config 或 counts`);
     }
+    if (value.iou_type !== undefined && value.iou_type !== "bbox" && value.iou_type !== "segm") {
+      throw new Error(`${name}.iou_type 必须是 bbox 或 segm`);
+    }
     for (const metric of METRICS) {
       if (!Number.isFinite(value.summary[metric])) {
         throw new Error(`${name}.summary.${metric} 缺失或不是有限数字`);
@@ -68,6 +71,9 @@
     if (object(value.baseline) || object(value.candidate)) {
       evaluation(value.baseline, "baseline");
       evaluation(value.candidate, "candidate");
+      if ((value.baseline.iou_type || "bbox") !== (value.candidate.iou_type || "bbox")) {
+        throw new Error("双模型报告的评测类型不同，不能比较 bbox 与 mask AP");
+      }
       arrayField(value.metrics, "metrics");
       arrayField(value.classes, "classes");
       arrayField(value.image_changes, "image_changes");
@@ -178,6 +184,7 @@
   }
 
   return {
+    iouType: (model) => sides(model)[0].report.iou_type || "bbox",
     METRICS, parseReport, sides, selectedSide, overallMetrics, classIds,
     classMetrics, imageRows, curveOptions, curveData, filterDiagnostics, formatValue,
   };

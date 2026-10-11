@@ -2,8 +2,10 @@
 
 ## Unreleased (source checkout)
 
+- Evaluate COCO RLE instance-mask AP/AR: separate mask models and JSON adapters, 12 summary/per-class metrics, crowd and pixel-area handling, diagnostics, image summaries, PR curves and paired comparisons. Native CLI `--iou-type segm`, task-marked reports and viewer validation. Verify 43 fixed/seeded cases against `COCOeval(segm)`; polygons remain unsupported and the published `0.1.0` package is unchanged.
+
 - Read/export COCO compressed mask RLE counts and parse standalone segmentation RLE JSON objects, with bounded decoding and malformed-input tests. Verify 35 mask pairs in three input forms and byte-for-byte exports against `pycocotools==2.0.7`.
-- Add validated uncompressed COCO RLE mask area, ordinary IoU, and crowd overlap primitives; the initial 29 fixed/seeded cases match `pycocotools==2.0.7`. Mask AP remains future work.
+- Add validated uncompressed COCO RLE mask area, ordinary IoU, and crowd overlap primitives; the initial 29 fixed/seeded cases match `pycocotools==2.0.7`.
 - Native CLI `--help`/`-h` and early positional-argument diagnostics, with a real-process regression check; README entry-point guide and reproducible GitHub bug template.
 - Local read-only browser viewer for single and paired JSON reports, including paged diagnostics and PR curves.
 - Standard-library Python batch evaluator that runs multiple COCO predictors on one frozen ground-truth input and writes hashed, replayable reports with a comparable index.

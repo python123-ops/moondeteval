@@ -104,6 +104,7 @@ pub fn ClassMetrics::metrics(self : ClassMetrics) -> Metrics {
 pub struct EvaluationReport {
   schema_version : String
   evaluator_version : String
+  iou_type : String
   config : EvalConfig
   counts : InputCounts
   summary : Metrics
@@ -113,7 +114,7 @@ pub struct EvaluationReport {
   recall_thresholds : Array[Double]
   pr_curves : Array[PrecisionRecallCurve]
   quality_warnings : Array[QualityWarning]
-} derive(ToJson)
+}
 
 ///|
 /// Input sizes and detections retained by the all-area maxDets=100 evaluation.
@@ -467,8 +468,12 @@ pub fn EvalConfig::new(
     }
     previous = threshold
   }
-  if ignore_policy != "coco_bbox" && ignore_policy != "respect_explicit" {
-    raise InvalidConfig("ignore_policy must be coco_bbox or respect_explicit")
+  if ignore_policy != "coco_bbox" &&
+    ignore_policy != "coco_segm" &&
+    ignore_policy != "respect_explicit" {
+    raise InvalidConfig(
+      "ignore_policy must be coco_bbox, coco_segm or respect_explicit",
+    )
   }
   {
     iou_thresholds: iou_thresholds.copy(),
@@ -668,7 +673,7 @@ fn prepare_category(
 fn classify_false_positive(
   all_truths : Array[GroundTruth],
   category_id : Int,
-  detection : Box,
+  detection : Detection,
   truths : Array[RankedTruth],
   used : Array[Bool],
   ignored : Array[Bool],
@@ -679,7 +684,7 @@ fn classify_false_positive(
     let truth = truths[index].truth
     if used[index] &&
       !ignored[index] &&
-      overlap(detection, truth.bbox, false) >= threshold {
+      instance_overlap(detection, truth, false) >= threshold {
       return "duplicate"
     }
   }
@@ -687,13 +692,13 @@ fn classify_false_positive(
     if truth.category_id != category_id &&
       !truth.iscrowd &&
       (!respect_explicit_ignore || !truth.ignore) &&
-      overlap(detection, truth.bbox, false) >= threshold {
+      instance_overlap(detection, truth, false) >= threshold {
       return "wrong_class"
     }
   }
   for index in 0..<truths.length() {
     let truth = truths[index].truth
-    if !ignored[index] && overlap(detection, truth.bbox, false) >= 0.1 {
+    if !ignored[index] && instance_overlap(detection, truth, false) >= 0.1 {
       return "localization"
     }
   }
@@ -760,9 +765,9 @@ fn evaluate_curve(
         if best >= 0 && !ignored[best] && ignored[truth_index] {
           break
         }
-        let current = overlap(
-          candidate.detection.bbox,
-          truth.bbox,
+        let current = instance_overlap(
+          candidate.detection,
+          truth,
           truth.iscrowd,
         )
         if current < best_overlap {
@@ -774,7 +779,7 @@ fn evaluate_curve(
       let match_ignored = if best >= 0 {
         ignored[best]
       } else {
-        !in_area(candidate.detection.bbox.area(), lower, upper)
+        !in_area(instance_detection_area(candidate.detection), lower, upper)
       }
       if best >= 0 {
         used[best] = true
@@ -803,7 +808,7 @@ fn evaluate_curve(
             classify_false_positive(
               group.all_truths,
               category_id,
-              candidate.detection.bbox,
+              candidate.detection,
               truths,
               used,
               ignored,
@@ -1131,7 +1136,11 @@ fn evaluate_internal(
   dataset : Dataset,
   predictions : Array[Detection],
   config : EvalConfig,
+  iou_type? : String = "bbox",
 ) -> EvaluationReport raise EvalError {
+  if iou_type == "bbox" && config.ignore_policy == "coco_segm" {
+    raise InvalidConfig("coco_segm policy requires evaluate_masks")
+  }
   let image_ids : Map[Int, Bool] = Map([])
   let images_by_id : Map[Int, Image] = Map([])
   let category_ids : Map[Int, Bool] = Map([])
@@ -1309,6 +1318,7 @@ fn evaluate_internal(
   {
     schema_version: "0.1.0",
     evaluator_version: "0.1.0",
+    iou_type,
     config,
     counts: {
       images: dataset.images.length(),
@@ -1346,4 +1356,62 @@ fn box_outside_image(box : Box, image : Image) -> Bool {
   box.y1 < 0.0 ||
   box.x2 > image.width.to_double() ||
   box.y2 > image.height.to_double()
+}
+
+///|
+pub fn EvaluationReport::iou_type(self : EvaluationReport) -> String {
+  self.iou_type
+}
+
+///|
+pub impl ToJson for EvaluationReport with fn to_json(self) {
+  let fields : Map[String, Json] = Map([])
+  fields["schema_version"] = @json.to_json(self.schema_version)
+  fields["evaluator_version"] = @json.to_json(self.evaluator_version)
+  fields["config"] = @json.to_json(self.config)
+  fields["counts"] = @json.to_json(self.counts)
+  fields["summary"] = @json.to_json(self.summary)
+  fields["classes"] = @json.to_json(self.classes)
+  fields["diagnostics"] = @json.to_json(self.diagnostics)
+  fields["image_summaries"] = @json.to_json(self.image_summaries)
+  fields["recall_thresholds"] = @json.to_json(self.recall_thresholds)
+  fields["pr_curves"] = @json.to_json(self.pr_curves)
+  fields["quality_warnings"] = @json.to_json(self.quality_warnings)
+  if self.iou_type == "segm" {
+    fields["iou_type"] = Json::string("segm")
+  }
+  Json::object(fields)
+}
+
+///|
+// Mask entry points validate equal canvases before the shared matcher runs.
+fn instance_overlap(
+  detection : Detection,
+  truth : GroundTruth,
+  crowd : Bool,
+) -> Double {
+  match (detection.mask, truth.mask) {
+    (Some(left), Some(right)) => {
+      let common = left.intersection(right).to_double()
+      let denominator = if crowd {
+        left.area().to_double()
+      } else {
+        left.area().to_double() + right.area().to_double() - common
+      }
+      if denominator == 0.0 {
+        0.0
+      } else {
+        common / denominator
+      }
+    }
+    _ => overlap(detection.bbox, truth.bbox, crowd)
+  }
+}
+
+///|
+fn instance_detection_area(detection : Detection) -> Double {
+  match detection.mask {
+    Some(mask) => mask.area().to_double()
+    None => detection.bbox.area()
+  }
 }

@@ -6,7 +6,13 @@ pub struct CocoRle {
   width : Int
   counts : Array[Int]
   foreground_area : Int
-}
+} derive(Debug, Eq)
+
+///|
+pub extend CocoRle with Debug::{to_repr}
+
+///|
+pub extend CocoRle with Eq::{equal, not_equal}
 
 ///|
 fn rle_pixel_count(height : Int, width : Int) -> Int64 raise EvalError {
