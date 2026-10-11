@@ -1,11 +1,23 @@
 ///|
-/// An uncompressed COCO mask RLE. Runs alternate background and foreground
+/// A validated COCO mask RLE. Runs alternate background and foreground
 /// pixels in column-major image order, starting with background.
 pub struct CocoRle {
   height : Int
   width : Int
   counts : Array[Int]
   foreground_area : Int
+}
+
+///|
+fn rle_pixel_count(height : Int, width : Int) -> Int64 raise EvalError {
+  if height <= 0 || width <= 0 {
+    raise InvalidInput("mask RLE height and width must be positive")
+  }
+  let pixels = height.to_int64() * width.to_int64()
+  if pixels > 2147483647L {
+    raise InvalidInput("mask RLE image exceeds supported pixel count")
+  }
+  pixels
 }
 
 ///|
@@ -17,13 +29,7 @@ pub fn CocoRle::new(
   width : Int,
   counts : Array[Int],
 ) -> CocoRle raise EvalError {
-  if height <= 0 || width <= 0 {
-    raise InvalidInput("mask RLE height and width must be positive")
-  }
-  let pixels = height.to_int64() * width.to_int64()
-  if pixels > 2147483647L {
-    raise InvalidInput("mask RLE image exceeds supported pixel count")
-  }
+  let pixels = rle_pixel_count(height, width)
   if counts.is_empty() {
     raise InvalidInput("mask RLE counts must not be empty")
   }

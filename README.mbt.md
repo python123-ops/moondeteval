@@ -17,7 +17,11 @@ The CLI help and argument diagnostics described here are in the current source c
 
 The library accepts validated in-memory images, categories, ground truths, and detections, or COCO-style JSON files. It computes the 12 standard COCO bbox summary metrics and per-category values. Scores are ranked in descending order; equal scores preserve input order within an image/category, while cross-image accumulation follows sorted image IDs, matching the COCO reference. Crowd boxes use intersection over detection area and do not count as positive ground truths. Values of `-1` mean a metric has no eligible ground truths. Boxes use continuous `xywh` coordinates, without pixel-endpoint `+1` or automatic clipping.
 
-The source checkout also provides `CocoRle` as a first step toward mask evaluation. `CocoRle::new(height, width, counts)` accepts **uncompressed** COCO RLE counts: column-major pixels, alternating background/foreground runs, beginning with background (an initial zero run means the first pixel is foreground). It validates that the runs exactly cover one positive-size image of at most 2,147,483,647 pixels. `area()` returns foreground pixels; `iou(other)` returns ordinary mask IoU; `crowd_iou(other)` treats `self` as the detection and `other` as crowd ground truth, dividing intersection by detection area. Both IoU methods reject mismatched image dimensions and return zero for an empty denominator. The implementation processes runs directly and copies constructor input. Compressed COCO RLE strings, polygons, mask AP/AR, and mask JSON/CLI evaluation are **not yet supported**. This source-only API is absent from the published `0.1.0` package. A reproducible 29-pair differential against `pycocotools==2.0.7` is in [mask_rle_reference.py](examples/mask_rle_reference.py).
+The source checkout also provides `CocoRle` as a first step toward mask evaluation. `CocoRle::new(height, width, counts)` accepts uncompressed COCO RLE counts: column-major pixels, alternating background/foreground runs, beginning with background (an initial zero run means the first pixel is foreground). It validates that the runs exactly cover one positive-size image of at most 2,147,483,647 pixels. `area()` returns foreground pixels; `iou(other)` returns ordinary mask IoU; `crowd_iou(other)` treats `self` as the detection and `other` as crowd ground truth, dividing intersection by detection area. Both IoU methods reject mismatched image dimensions and return zero for an empty denominator. The implementation processes runs directly and copies constructor input.
+
+`CocoRle::from_compressed(height, width, counts)` reads COCO ASCII compressed counts, including signed run differences; `to_compressed()` exports the stored run sequence in the same format. Reading rejects invalid characters, truncated groups, runs needing more than seven characters, negative reconstructed runs, and lengths exceeding the image. Character positions in errors are zero-based. `parse_coco_rle(source)` accepts one segmentation RLE JSON object with `size: [height, width]` and `counts` as either a run array or a compressed string. Sizes and array entries must decode to nonnegative integer-valued numbers within the Int range. It uses the core JSON parser's numeric and duplicate-key behavior; producers should emit integer tokens and unique keys. The parser handles JSON escaping, including backslashes within counts.
+
+These source-only APIs are absent from the published `0.1.0` package. Polygon rasterization, mask AP/AR, and full mask dataset/CLI evaluation remain future work. The [differential script](examples/mask_rle_reference.py) checks 35 fixed/seeded mask pairs in three input forms against `pycocotools==2.0.7`, including byte-for-byte compressed exports. Int-limit codec cases use explicit MoonBit fixtures: the Windows reference C decoder mishandles some large signed differences, so they are outside this script's reference geometry claim.
 
 ```moonbit nocheck
 ///|
@@ -27,6 +31,12 @@ let detection = @moondeteval.CocoRle::new(3, 4, [1, 2, 2, 3, 4])
 let truth = @moondeteval.CocoRle::new(3, 4, [0, 3, 2, 1, 6])
 // detection.area() == 5; detection.iou(truth) == 0.5
 // detection.crowd_iou(truth) == 0.6
+
+///|
+let compressed = @moondeteval.parse_coco_rle(
+  "{\"size\":[3,4],\"counts\":\"032N4\"}",
+)
+// compressed.to_compressed() == "032N4"; detection.iou(compressed) == 0.5
 ```
 
 COCO annotation IDs use signed 64-bit integers because real validation annotations can exceed the 32-bit range. The parser accepts integer JSON numbers within that range, rejects fractional or out-of-range IDs, and preserves the exact ID in diagnostics. Report IDs remain JSON numbers. Library callers constructing `GroundTruth` directly now pass an `Int64` ID.
@@ -220,10 +230,11 @@ python examples/compare_demo.py
 python examples/yolo_manifest_demo.py
 python -m pip install numpy==1.26.4 pycocotools==2.0.7
 python reference_compare.py
+python examples/mask_rle_reference.py
 ```
 
 `pycocotools` is used only for development comparison; the MoonBit library does not depend on Python. The native CLI uses `moonbitlang/async@0.21.3` for file access.
 
 ## License and attribution
 
-MoonDetEval is Apache-2.0. COCO's [official bbox evaluator](https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocotools/cocoeval.py) is a behavioral reference; its source code is not copied here. The [COCO API license](https://github.com/cocodataset/cocoapi/blob/master/license.txt) is separate from this repository's license. `pycocotools==2.0.7` and NumPy are development-only reference tools, while the CLI's MoonBit runtime dependency is `moonbitlang/async@0.21.3`. The checked-in example data is synthetic. Real COCO images/annotations and YOLO model weights used for external validation are not bundled or redistributed in this repository.
+MoonDetEval is Apache-2.0. COCO's [official bbox evaluator](https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocotools/cocoeval.py) and [mask encoding API](https://github.com/cocodataset/cocoapi/blob/master/common/maskApi.c) are behavioral and format references; their source code is not copied here. The [COCO API license](https://github.com/cocodataset/cocoapi/blob/master/license.txt) is separate from this repository's license. `pycocotools==2.0.7` and NumPy are development-only reference tools, while the CLI's MoonBit runtime dependency is `moonbitlang/async@0.21.3`. The checked-in example data is synthetic. Real COCO images/annotations and YOLO model weights used for external validation are not bundled or redistributed in this repository.

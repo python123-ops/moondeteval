@@ -2,6 +2,7 @@ import {
   "python123-ops/moondeteval",
   "moonbitlang/core/env",
   "moonbitlang/core/string",
+  "moonbitlang/core/json",
 }
 
 supported_targets = "+native"
