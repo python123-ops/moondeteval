@@ -2,6 +2,17 @@
 
 MoonDetEval is a MoonBit library and native CLI for detector-independent, continuous-coordinate bounding-box evaluation. It is a separate October 2026 project from [MBMOT](https://github.com/python123-ops/mbmot), which measures multi-object tracking.
 
+Choose an entry point:
+
+| Need | Start here |
+| --- | --- |
+| Evaluate in MoonBit code | [Install and call the library](#install-and-call-the-library) (`moon add python123-ops/moondeteval@0.1.0`) |
+| Evaluate one or two prediction sets from files | [Run the source examples](#run-the-source-examples) (`moon run cli --target native -- --help`) |
+| Inspect an existing JSON report | [Read-only browser viewer](viewer/index.html) |
+| Compare more than two prediction sets | [Batch evaluator](examples/batch_eval.py) |
+
+The CLI help and argument diagnostics described here are in the current source checkout; the published Mooncakes library remains the frozen `0.1.0` release. For a reproducible problem, [open a GitHub issue](https://github.com/python123-ops/moondeteval/issues/new/choose) with the version, target, minimal non-sensitive input, expected behavior, and actual output.
+
 ## Current scope
 
 The library accepts validated in-memory images, categories, ground truths, and detections, or COCO-style JSON files. It computes the 12 standard COCO bbox summary metrics and per-category values. Scores are ranked in descending order; equal scores preserve input order within an image/category, while cross-image accumulation follows sorted image IDs, matching the COCO reference. Crowd boxes use intersection over detection area and do not count as positive ground truths. Values of `-1` mean a metric has no eligible ground truths. Boxes use continuous `xywh` coordinates, without pixel-endpoint `+1` or automatic clipping.
