@@ -10,12 +10,19 @@ fn parse_counts(value : String) -> Array[Int] raise {
 ///|
 fn main raise {
   let args = @env.args()
-  let (detection, truth) = if args.length() == 4 && args[1] == "--json" {
+  let (detection, truth) = if args.length() == 6 && args[1] == "--segmentation" {
+    let height = @string.parse_int(args[2])
+    let width = @string.parse_int(args[3])
+    (
+      @moondeteval.parse_coco_segmentation(args[4], height, width),
+      @moondeteval.parse_coco_segmentation(args[5], height, width),
+    )
+  } else if args.length() == 4 && args[1] == "--json" {
     (@moondeteval.parse_coco_rle(args[2]), @moondeteval.parse_coco_rle(args[3]))
   } else {
     if args.length() != 5 {
       abort(
-        "expected height width detection-counts truth-counts or --json detection truth",
+        "expected height width detection-counts truth-counts, --json detection truth, or --segmentation height width detection truth",
       )
     }
     let height = @string.parse_int(args[1])

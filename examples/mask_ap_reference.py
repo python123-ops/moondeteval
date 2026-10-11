@@ -29,7 +29,10 @@ SEED = 20261012
 PREFIX = ["moon", "run", "cli", "--target", "native", "--"]
 
 
-def encoded(value):
+def encoded(value, height=None, width=None):
+    if isinstance(value, list):
+        assert height is not None and width is not None
+        return masks.merge(masks.frPyObjects(value, height, width))
     if isinstance(value["counts"], list):
         return masks.frPyObjects(value, *value["size"])
     return {"size": value["size"], "counts": value["counts"].encode("ascii")}
@@ -64,8 +67,9 @@ def dataset(annotations, h=2, w=2, images=(1,), categories=(1,)):
 def reference(truth, predictions):
     truth = copy.deepcopy(truth)
     predictions = [copy.deepcopy(item) for item in predictions]
+    canvases = {image["id"]: (image["height"], image["width"]) for image in truth["images"]}
     for item in truth["annotations"] + predictions:
-        item["segmentation"] = encoded(item["segmentation"])
+        item["segmentation"] = encoded(item["segmentation"], *canvases[item["image_id"]])
     # loadRes prioritizes bbox; remove it for canonical mask pixel area.
     for item in predictions:
         item.pop("bbox", None)
@@ -241,7 +245,7 @@ def check_cli():
         for options in (("--prediction-format", "yolo"), ("--iou-type", "segm"), ("--max-records", "1"), ("--max-report-bytes", "1"), ("--diagnostics", "--max-diagnostics", "1")):
             run = run_cli(data, bad, directory, *options)
             assert run.returncode == 2 and run.stdout == "", (options, run.stderr)
-        invalid = [dict(bad[0], segmentation=[[0, 0, 2, 0, 2, 2]]),
+        invalid = [dict(bad[0], segmentation=[[0, 0, 2, 0, 2]]),
                    dict(bad[0], segmentation=rle(1, 4, [0, 4])),
                    dict(bad[0], image_id=99), dict(bad[0], category_id=99),
                    {k: v for k, v in bad[0].items() if k != "segmentation"}]

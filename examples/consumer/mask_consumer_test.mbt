@@ -21,3 +21,28 @@ test "source consumer evaluates masks through public types and config" {
   assert_eq(report.iou_type(), "segm")
   assert_eq(report.pr_curves().length(), 2)
 }
+
+///|
+test "source consumer parses COCO polygon masks with dataset canvas" {
+  let dataset = @moondeteval.parse_coco_mask_dataset(
+    "{\"images\":[{\"id\":5,\"width\":4,\"height\":4}],\"categories\":[{\"id\":7,\"name\":\"object\"}],\"annotations\":[{\"id\":9,\"image_id\":5,\"category_id\":7,\"area\":9,\"segmentation\":[[0,0,3,0,3,3,0,3]]}]}",
+  )
+  let predictions = @moondeteval.parse_coco_mask_detections_with_dataset(
+    "[{\"image_id\":5,\"category_id\":7,\"score\":0.9,\"segmentation\":[[0,0,3,0,3,3,0,3]]}]",
+    dataset,
+  )
+  assert_eq(predictions[0].mask().area(), 9)
+  assert_eq(
+    @moondeteval.evaluate_masks(dataset, predictions).summary().ap(),
+    1.0,
+  )
+  let mask = @moondeteval.parse_coco_segmentation("[[0,0,3,0,3,3,0,3]]", 4, 4)
+  assert_eq(
+    mask.iou(
+      @moondeteval.CocoRle::from_polygons(4, 4, [
+        [0.0, 0.0, 3.0, 0.0, 3.0, 3.0, 0.0, 3.0],
+      ]),
+    ),
+    1.0,
+  )
+}

@@ -89,7 +89,10 @@ async fn load_evaluation_input(
           "ground truth " + paths[0] + ": " + error.message(),
         )
     }
-    let predictions = @moondeteval.parse_coco_mask_detections(sources[1]) catch {
+    let predictions = @moondeteval.parse_coco_mask_detections_with_dataset(
+      sources[1],
+      dataset,
+    ) catch {
       error =>
         raise @moondeteval.InvalidInput(
           "detections " + paths[1] + ": " + error.message(),
@@ -97,7 +100,10 @@ async fn load_evaluation_input(
     }
     let other = if sources.length() == 3 {
       Some(
-        @moondeteval.parse_coco_mask_detections(sources[2]) catch {
+        @moondeteval.parse_coco_mask_detections_with_dataset(
+          sources[2],
+          dataset,
+        ) catch {
           error =>
             raise @moondeteval.InvalidInput(
               "detections " + paths[2] + ": " + error.message(),

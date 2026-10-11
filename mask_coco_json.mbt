@@ -18,7 +18,7 @@ priv struct CocoMaskPrediction {
 } derive(FromJson)
 
 ///|
-/// Reads compressed or uncompressed RLE annotations. Polygon arrays are rejected.
+/// Reads compressed/uncompressed RLE or polygon-ring annotations.
 /// bbox is not required and does not affect mask scoring. Annotation area is kept.
 pub fn parse_coco_mask_dataset(source : String) -> MaskDataset raise EvalError {
   let json = @json.parse(source) catch {
@@ -86,11 +86,19 @@ pub fn parse_coco_mask_dataset(source : String) -> MaskDataset raise EvalError {
       let annotation : CocoMaskAnnotation = @json.from_json(entry) catch {
         error => raise InvalidInput(error.to_string())
       }
+      let image = match image_ids.get(annotation.image_id) {
+        Some(image) => image
+        None => raise InvalidInput("image_id references unknown image")
+      }
       MaskGroundTruth::new(
         parse_annotation_id(annotation.id, "id"),
         annotation.image_id,
         annotation.category_id,
-        parse_rle_value(annotation.segmentation),
+        parse_segmentation_value(
+          annotation.segmentation,
+          image.height,
+          image.width,
+        ),
         area=annotation.area,
         iscrowd=parse_flag(annotation.iscrowd, "iscrowd"),
         ignore=parse_flag(annotation.ignore, "ignore"),
@@ -118,8 +126,28 @@ pub fn parse_coco_mask_dataset(source : String) -> MaskDataset raise EvalError {
 ///|
 /// Stable detection IDs are zero-based input positions. bbox and supplied area
 /// fields are ignored: segmentation pixel area controls unmatched area filtering.
+/// This original entry point accepts RLE only. For polygons, use the dataset-aware
+/// entry point below so canvas size comes from the declared image.
 pub fn parse_coco_mask_detections(
   source : String,
+) -> Array[MaskDetection] raise EvalError {
+  parse_mask_predictions(source, None)
+}
+
+///|
+/// Reads polygon or RLE predictions, validating references and canvas sizes
+/// against the same ground-truth dataset used for evaluation.
+pub fn parse_coco_mask_detections_with_dataset(
+  source : String,
+  dataset : MaskDataset,
+) -> Array[MaskDetection] raise EvalError {
+  parse_mask_predictions(source, Some(dataset))
+}
+
+///|
+fn parse_mask_predictions(
+  source : String,
+  dataset : MaskDataset?,
 ) -> Array[MaskDetection] raise EvalError {
   let json = @json.parse(source) catch {
     _ => raise InvalidInput("detections are not valid JSON")
@@ -129,16 +157,53 @@ pub fn parse_coco_mask_detections(
       raise InvalidInput("detections must be an array: " + error.to_string())
   }
   let predictions : Array[MaskDetection] = []
+  let images : Map[Int, Image] = Map([])
+  let categories : Map[Int, Bool] = Map([])
+  match dataset {
+    Some(value) => {
+      for image in value.images() {
+        images[image.id] = image
+      }
+      for category in value.categories() {
+        categories[category.id] = true
+      }
+    }
+    None => ()
+  }
   for index, entry in raw {
     let item = try {
       let prediction : CocoMaskPrediction = @json.from_json(entry) catch {
         error => raise InvalidInput(error.to_string())
       }
+      let mask = match dataset {
+        Some(_) => {
+          let image = match images.get(prediction.image_id) {
+            Some(image) => image
+            None => raise InvalidInput("image_id references unknown image")
+          }
+          if !categories.contains(prediction.category_id) {
+            raise InvalidInput("category_id references unknown category")
+          }
+          parse_segmentation_value(
+            prediction.segmentation,
+            image.height,
+            image.width,
+          )
+        }
+        None => {
+          if prediction.segmentation is Array(_) {
+            raise InvalidInput(
+              "polygon predictions require image dimensions; use parse_coco_mask_detections_with_dataset",
+            )
+          }
+          parse_rle_value(prediction.segmentation)
+        }
+      }
       MaskDetection::new(
         index,
         prediction.image_id,
         prediction.category_id,
-        parse_rle_value(prediction.segmentation),
+        mask,
         prediction.score,
       )
     } catch {

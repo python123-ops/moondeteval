@@ -1,0 +1,46 @@
+{
+  "images": [
+    {
+      "id": 1,
+      "height": 2,
+      "width": 2
+    }
+  ],
+  "categories": [
+    {
+      "id": 1,
+      "name": "object"
+    }
+  ],
+  "annotations": [
+    {
+      "id": 1,
+      "image_id": 1,
+      "category_id": 1,
+      "area": 2,
+      "iscrowd": 0,
+      "segmentation": [
+        [
+          0,
+          0,
+          1,
+          0,
+          1,
+          1,
+          0,
+          1
+        ],
+        [
+          1,
+          1,
+          2,
+          1,
+          2,
+          2,
+          1,
+          2
+        ]
+      ]
+    }
+  ]
+}

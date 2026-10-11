@@ -39,6 +39,7 @@ jobs:
           required = {'moon.mod', 'moon.pkg', 'LICENSE', 'README.mbt.md', 'CHANGELOG.md',
                       'pkg.generated.mbti', 'box.mbt', 'mask_rle.mbt', 'mask_rle_codec.mbt',
                       'evaluation.mbt', 'mask_evaluation.mbt', 'mask_coco_json.mbt',
+                      'mask_polygon.mbt', 'THIRD_PARTY_NOTICES.md',
                       'cli/main.mbt', 'cli/evaluation_input.mbt'}
           assert required <= names, required - names
           assert not any(name.startswith(('examples/', 'viewer/')) for name in names)
@@ -71,3 +72,5 @@ jobs:
         run: python examples/mask_rle_reference.py
       - name: Compare RLE mask AP with pycocotools
         run: python examples/mask_ap_reference.py
+      - name: Compare COCO polygon rasterization and mask AP
+        run: python examples/polygon_reference.py

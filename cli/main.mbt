@@ -17,7 +17,7 @@ fn help_text() -> String {
   usage() +
   "\n\nEvaluate COCO bbox/mask predictions or a YOLO bbox manifest against one ground-truth file.\n" +
   "\nInputs:\n  ground-truth.json            COCO ground truths\n  detections.json|manifest.json  COCO detections or YOLO manifest\n" +
-  "\nOptions:\n  --iou-type bbox|segm          Evaluation geometry (default: bbox; segm requires COCO RLE)\n  --prediction-format coco|yolo  Prediction input format (default: coco)\n  --compare OTHER.json          Compare a second prediction file\n  --compare-format coco|yolo     Second prediction format (default: coco)\n  --diagnostics                 Include matching decisions\n  --image-ranking               Include per-image results\n  --pr-curves                   Include precision-recall curves\n  --timings                     Print stage timings to stderr\n  --min-ap50 N                  Fail if AP50 is below N\n  --fail-on-warning             Fail on out-of-image warnings\n  --output PATH                 Write report to a new file\n  --max-input-bytes N           Limit each input file\n  --max-total-input-bytes N     Limit combined input size\n  --max-records N               Limit input records\n  --max-diagnostics N           Limit diagnostic entries\n  --max-report-bytes N          Limit report size\n  -h, --help                    Show this help\n" +
+  "\nOptions:\n  --iou-type bbox|segm          Evaluation geometry (default: bbox; segm requires COCO masks)\n  --prediction-format coco|yolo  Prediction input format (default: coco)\n  --compare OTHER.json          Compare a second prediction file\n  --compare-format coco|yolo     Second prediction format (default: coco)\n  --diagnostics                 Include matching decisions\n  --image-ranking               Include per-image results\n  --pr-curves                   Include precision-recall curves\n  --timings                     Print stage timings to stderr\n  --min-ap50 N                  Fail if AP50 is below N\n  --fail-on-warning             Fail on out-of-image warnings\n  --output PATH                 Write report to a new file\n  --max-input-bytes N           Limit each input file\n  --max-total-input-bytes N     Limit combined input size\n  --max-records N               Limit input records\n  --max-diagnostics N           Limit diagnostic entries\n  --max-report-bytes N          Limit report size\n  -h, --help                    Show this help\n" +
   "\nExamples (from source checkout):\n  moon run cli --target native -- examples/ground-truth.json examples/detections.json\n  moon run cli --target native -- examples/yolo/ground-truth.json examples/yolo/manifest.json --prediction-format yolo\n" +
   "\nExit codes: 0 success; 2 invalid input or usage; 3 quality gate failure.\n"
 }
@@ -228,7 +228,8 @@ async fn main {
       (comparison_path is Some(_) && comparison_format != "coco")
     ) {
     fail_command(
-      "--iou-type segm requires COCO RLE predictions; YOLO supports bbox only", 2,
+      "--iou-type segm requires COCO masks predictions; YOLO supports bbox only",
+      2,
     )
     return
   }

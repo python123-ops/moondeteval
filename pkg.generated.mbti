@@ -32,7 +32,11 @@ pub fn parse_coco_mask_dataset(String) -> MaskDataset raise EvalError
 
 pub fn parse_coco_mask_detections(String) -> Array[MaskDetection] raise EvalError
 
+pub fn parse_coco_mask_detections_with_dataset(String, MaskDataset) -> Array[MaskDetection] raise EvalError
+
 pub fn parse_coco_rle(String) -> CocoRle raise EvalError
+
+pub fn parse_coco_segmentation(String, Int, Int) -> CocoRle raise EvalError
 
 pub fn parse_yolo_detections(String, Dataset, Int, Array[Int], first_detection_id? : Int) -> Array[Detection] raise EvalError
 
@@ -100,6 +104,7 @@ pub fn CocoRle::area(Self) -> Int
 pub fn CocoRle::crowd_iou(Self, Self) -> Double raise EvalError
 pub fn CocoRle::equal(Self, Self) -> Bool
 pub fn CocoRle::from_compressed(Int, Int, String) -> Self raise EvalError
+pub fn CocoRle::from_polygons(Int, Int, Array[Array[Double]]) -> Self raise EvalError
 pub fn CocoRle::height(Self) -> Int
 pub fn CocoRle::iou(Self, Self) -> Double raise EvalError
 pub fn CocoRle::new(Int, Int, Array[Int]) -> Self raise EvalError
