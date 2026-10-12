@@ -328,3 +328,34 @@ test "mask diagnostic reasons use mask geometry across categories" {
   assert_eq(report.diagnostics()[3].reason(), "background")
   assert_eq(report.diagnostics()[4].reason(), "wrong_class")
 }
+
+///|
+test "mask recall grid seven of ten preserves COCO floating boundary" {
+  let mask = @moondeteval.CocoRle::new(2, 2, [0, 1, 3])
+  let images : Array[@moondeteval.Image] = []
+  let truths : Array[@moondeteval.MaskGroundTruth] = []
+  let predictions : Array[@moondeteval.MaskDetection] = []
+  for id in 1..<11 {
+    images.push(@moondeteval.Image::new(id, 2, 2))
+    truths.push(
+      @moondeteval.MaskGroundTruth::new(id.to_int64(), id, 1, mask, area=1.0),
+    )
+    if id <= 7 {
+      predictions.push(@moondeteval.MaskDetection::new(id, id, 1, mask, 0.9))
+    }
+  }
+  let dataset = @moondeteval.MaskDataset::new(
+    images,
+    [@moondeteval.Category::new(1, "object")],
+    truths,
+  )
+  let report = @moondeteval.evaluate_masks_with_config(
+    dataset,
+    predictions,
+    @moondeteval.EvalConfig::new([0.5], include_pr_curves=true),
+  )
+  assert_eq(report.summary().ar100(), 0.7)
+  assert_eq(report.pr_curves()[0].precision()[69], 1.0)
+  assert_eq(report.pr_curves()[0].precision()[70], 0.0)
+  assert_true((report.summary().ap() - 70.0 / 101.0).abs() < 1.0e-12)
+}

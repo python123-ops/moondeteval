@@ -187,8 +187,8 @@ def check_precision_recall(name, diagnostics, detections, evaluator):
                     precision[index] = max(precision[index], precision[index + 1])
                 sampled = [
                     next((precision[index] for index, value in enumerate(recall)
-                          if value >= sample / 100), 0.0)
-                    for sample in range(101)
+                          if value >= threshold), 0.0)
+                    for threshold in evaluator.params.recThrs
                 ]
             expected_precision = evaluator.eval["precision"][
                 threshold_index, :, category_index, 0, 2

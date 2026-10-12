@@ -1,4 +1,4 @@
-"""Evaluate named COCO predictors against one fixed dataset and index the reports."""
+"""Evaluate named COCO bbox or segmentation predictors on one fixed dataset."""
 
 import argparse
 import hashlib
@@ -52,7 +52,7 @@ def snapshot(source, target):
     return copied
 
 
-def checked_report(path):
+def checked_report(path, expected_iou_type="bbox"):
     try:
         report = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
@@ -61,6 +61,13 @@ def checked_report(path):
         raise BatchError(f"unsupported CLI report schema: {path.name}")
     if not isinstance(report.get("config"), dict) or not isinstance(report.get("counts"), dict):
         raise BatchError(f"report lacks config or counts: {path.name}")
+    # The published bbox CLI omits the marker; segm must be explicit.
+    actual_iou_type = report.get("iou_type", "bbox")
+    if actual_iou_type not in ("bbox", "segm") or actual_iou_type != expected_iou_type:
+        raise BatchError(f"report iou_type={actual_iou_type!r} differs from requested {expected_iou_type}: {path.name}")
+    policy = report["config"].get("ignore_policy")
+    if (actual_iou_type == "bbox" and policy == "coco_segm") or (actual_iou_type == "segm" and policy == "coco_bbox"):
+        raise BatchError(f"report ignore policy disagrees with iou_type: {path.name}")
     summary = report.get("summary")
     if not isinstance(summary, dict):
         raise BatchError(f"report lacks summary: {path.name}")
@@ -80,6 +87,8 @@ def parse_args(argv=None):
     parser.add_argument("--baseline", required=True)
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--cli", type=input_path, help="native MoonDetEval executable; default: moon run cli")
+    parser.add_argument("--iou-type", choices=("bbox", "segm"), default="bbox",
+                        help="one evaluation geometry for all models (default: bbox)")
     for flag in ("diagnostics", "image-ranking", "pr-curves"):
         parser.add_argument("--" + flag, action="store_true")
     for flag in ("max-input-bytes", "max-total-input-bytes", "max-records", "max-diagnostics", "max-report-bytes"):
@@ -113,7 +122,9 @@ def run_batch(args):
             raise BatchError(f"--{flag.replace('_', '-')} requires a positive integer")
 
     prefix = [str(args.cli)] if args.cli else ["moon", "run", "cli", "--target", "native", "--"]
-    flags = ["--" + key.replace("_", "-") for key in ("diagnostics", "image_ranking", "pr_curves") if getattr(args, key)]
+    # Omit the default bbox flag so older registry-installed bbox CLIs still work.
+    flags = ["--iou-type", "segm"] if args.iou_type == "segm" else []
+    flags += ["--" + key.replace("_", "-") for key in ("diagnostics", "image_ranking", "pr_curves") if getattr(args, key)]
     for key in ("max_input_bytes", "max_total_input_bytes", "max_records", "max_diagnostics", "max_report_bytes"):
         value = getattr(args, key)
         if value is not None:
@@ -141,7 +152,7 @@ def run_batch(args):
             result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace")
             if result.returncode != 0:
                 raise BatchError(f"{name}: MoonDetEval CLI exited {result.returncode}: {result.stderr.strip()}")
-            report = checked_report(report_path)
+            report = checked_report(report_path, args.iou_type)
             config = report["config"]
             truth_counts = {key: report["counts"].get(key) for key in ("images", "categories", "ground_truths")}
             version = report.get("evaluator_version")
@@ -151,6 +162,7 @@ def run_batch(args):
                 raise BatchError(f"{name}: report configuration, dataset counts or evaluator version differs")
             entries.append({
                 "name": name,
+                "iou_type": args.iou_type,
                 "prediction_path": str(source),
                 "prediction_sha256": source_hash,
                 "report_file": report_name,
@@ -173,7 +185,8 @@ def run_batch(args):
             if digest(source) != source_hash:
                 raise BatchError(f"{name}: predictions changed during evaluation")
         index = {
-            "format_version": "1",
+            "format_version": "2",
+            "iou_type": args.iou_type,
             "created_at_utc": datetime.now(timezone.utc).isoformat(),
             "working_directory": str(ROOT),
             "ground_truth_path": str(args.ground_truth),

@@ -2,6 +2,8 @@
 
 ## Unreleased (source checkout)
 
+- Batch COCO mask evaluation with `--iou-type segm`, type-checked reports, format-2 indexes carrying task markers and replay flags, and preserved default bbox support for the published CLI. Seven batch checks pass; real YOLO11n-seg outputs on a 64-image COCO subset match the reference in three prediction configurations. Fix diagnostic PR reconstruction to use the reference recall grid rather than integer division; add a 7/10 recall boundary fixture and four-backend regression.
+
 - Accept COCO polygon-ring segmentations in mask ground truths and dataset-aware predictions; rasterize and union to RLE in MoonBit with COCO boundary rules, finite-coordinate/work guards and indexed input errors. Preserve RLE-only APIs and route the segm CLI through the new parser. Check 178 pixel-exact geometry cases and 42 AP cases against `pycocotools==2.0.7`; retain adapted COCO BSD attribution in the package.
 
 - Evaluate COCO RLE instance-mask AP/AR: separate mask models and JSON adapters, 12 summary/per-class metrics, crowd and pixel-area handling, diagnostics, image summaries, PR curves and paired comparisons. Native CLI `--iou-type segm`, task-marked reports and viewer validation. Verify 43 fixed/seeded cases against `COCOeval(segm)`; the published `0.1.0` package is unchanged.

@@ -170,6 +170,9 @@ def fixtures():
     yield "crowd-only", dataset([gt(1, 1, 1, full, crowd=1)]), [dt(1, 1, diagonal), dt(1, 1, opposite)]
     yield "explicit-ignore-default", dataset([gt(1, 1, 1, diagonal, ignore=1)]), [dt(1, 1, diagonal)]
     yield "stable-cross-image-ties", dataset([gt(1, 2, 1, diagonal), gt(2, 1, 1, diagonal)], images=(2, 1)), [dt(2, 1, diagonal, 0.5), dt(1, 1, opposite, 0.5), dt(1, 1, diagonal, 0.5)]
+    # COCO linspace uses 0.7000000000000001 here, while 7/10 is 0.7.
+    # Diagnostic reconstruction must use that same recall grid.
+    yield "recall-grid-seven-of-ten", dataset([gt(i, i, 1, diagonal) for i in range(1, 11)], images=range(1, 11)), [dt(i, 1, diagonal) for i in range(1, 8)]
     yield "rank-100-101", dataset([gt(1, 1, 1, diagonal)]), [dt(1, 1, empty, 0.5)] * 99 + [dt(1, 1, diagonal, 0.5)] * 2
     yield "rank-101-excluded", dataset([gt(1, 1, 1, diagonal)]), [dt(1, 1, empty, 0.5)] * 100 + [dt(1, 1, diagonal, 0.5)]
     yield "threshold-partial-overlap", dataset([gt(1, 1, 1, rle(1, 10, [0, 10]))], 1, 10), [dt(1, 1, rle(1, 10, [0, 6, 4], True))]
