@@ -1,6 +1,6 @@
 # MoonDetEval
 
-MoonDetEval is a MoonBit library and native CLI for detector-independent bounding-box and instance-mask evaluation. It is a separate October 2026 project from [MBMOT](https://github.com/python123-ops/mbmot), which measures multi-object tracking.
+MoonDetEval is a MoonBit library and native CLI for detector-independent bounding-box and instance-mask evaluation. It complements [MBMOT](https://github.com/python123-ops/mbmot), which measures multi-object tracking.
 
 Choose an entry point:
 
@@ -150,7 +150,7 @@ This example produces AP values `1`, `1`, `0` and baseline-relative AP differenc
 
 New indexes use **`format_version="2"`** and record `iou_type` at the top level and in every model entry. Format 1 was bbox-only; consumers should check the version and task before comparing indexes. The tool generates one comparable batch from frozen inputs; it does not merge unrelated indexes or existing reports. Each segm replay command retains `--iou-type segm`. Default bbox commands omit the new CLI flag to remain compatible with the published `0.1.0` native executable; segm requires a source CLI with mask support. Run `python -m unittest examples/batch_eval_test.py -v` for seven integration/boundary checks including exact report replay, three-input mixed encoding, failed-input cleanup and rejected report types.
 
-Local real-model acceptance also used fixed Ultralytics `8.3.0` YOLO11n-seg weights on 64 cached COCO val2017 images, with CPU inference at `imgsz=640` and `320`, `conf=0.001`, NMS IoU `0.7`, `max_det=100`, and `retina_masks=True`. Masks came from original-resolution binary `masks.data`, encoded as RLE; category IDs were mapped by COCO class names. A third input filtered the 640 predictions at confidence `0.25`. All three reports matched `COCOeval(segm)` summary/per-class metrics, 242,400 PR samples, 111,844 diagnostic entries and image counts at tolerance `1e-9`; batch deltas matched direct comparison, and GT polygon-to-RLE conversion/removing supplied detection box area preserved metrics. Reference inputs remove detection `bbox`/`area` to select COCO's mask-area branch. Data, weights, predictions and internal results remain outside the repository; these are subset acceptance results, not official full-validation accuracy or runtime ML dependencies.
+Real-model validation also used fixed Ultralytics `8.3.0` YOLO11n-seg weights on 64 cached COCO val2017 images, with CPU inference at `imgsz=640` and `320`, `conf=0.001`, NMS IoU `0.7`, `max_det=100`, and `retina_masks=True`. Masks came from original-resolution binary `masks.data`, encoded as RLE; category IDs were mapped by COCO class names. A third input filtered the 640 predictions at confidence `0.25`. All three reports matched `COCOeval(segm)` summary/per-class metrics, 242,400 PR samples, 111,844 diagnostic entries and image counts at tolerance `1e-9`; batch deltas matched direct comparison, and GT polygon-to-RLE conversion/removing supplied detection box area preserved metrics. Reference inputs remove detection `bbox`/`area` to select COCO's mask-area branch. These are subset validation results, not official full-validation accuracy or runtime ML dependencies.
 
 The index and all reports appear only when the full batch succeeds. Existing output directories are refused. This standard-library Python tool is a development companion to the native CLI, not part of the Mooncakes package.
 
@@ -278,7 +278,7 @@ The public API also supports `Image::new`, `Category::new`, `Box::from_xywh`, `G
 
 The [consumer example](examples/consumer/consumer_test.mbt) is a separate MoonBit module linked to this checkout by its `moon.work` file. Its [MBMOT bridge](examples/consumer/mbmot_adapter.mbt) converts detector frames into MoonDetEval predictions. The multi-frame form takes distinct target `image_id` values, an explicit MBMOT class-ID to dataset category-ID map, and a starting detection ID; it allocates consecutive IDs across frames and rejects unmapped classes, repeated frame IDs, ambiguous mappings, and ID overflow. It evaluates detector outputs only: MBMOT track IDs and MOT metrics are not reused. Run `moon test --target all --deny-warn` from `examples/consumer` for the source-workspace tests.
 
-The same consumer also imports the August [moon-cv-geometry](https://github.com/python123-ops/moon-cv-geometry) package at version `0.2.2`. Its [geometry adapter](https://github.com/python123-ops/moondeteval/blob/main/examples/consumer/geometry_adapter.mbt) converts a `Rect2` to a validated MoonDetEval `Box`, or maps four corners through a homography and evaluates the target-image envelope. The integration test gets AP50 `1` for a known transform and rejects a projective horizon crossing or zero-area rectangle. No geometry dependency is added to the MoonDetEval library; applications opt into the bridge when they need cross-view coordinates. The geometry repository's `examples/detection_bounds` independently shows the source side of the workflow.
+The same consumer also imports the [moon-cv-geometry](https://github.com/python123-ops/moon-cv-geometry) package at version `0.2.2`. Its [geometry adapter](https://github.com/python123-ops/moondeteval/blob/main/examples/consumer/geometry_adapter.mbt) converts a `Rect2` to a validated MoonDetEval `Box`, or maps four corners through a homography and evaluates the target-image envelope. The integration test gets AP50 `1` for a known transform and rejects a projective horizon crossing or zero-area rectangle. No geometry dependency is added to the MoonDetEval library; applications opt into the bridge when they need cross-view coordinates. The geometry repository's `examples/detection_bounds` independently shows the source side of the workflow.
 
 To verify the **published** versions together, run `python examples/consumer/registry_smoke.py`. It creates a temporary module with no `moon.work`, checks the resolved dependency tree for registry-sourced MoonDetEval `0.1.0`, MBMOT `0.3.0`, and moon-cv-geometry `0.2.2`, runs the adapter tests on all four stable targets, then runs a native two-frame pipeline through geometry, MBMOT detections, and MoonDetEval (`AP50=1`). Pass `--output-dir PATH` to retain the independent module and `registry-result.json`; the destination must not exist. The target-image envelope is not clipped to the image boundary, and an axis-aligned envelope is not a rotated-box or mask evaluation.
 
@@ -298,6 +298,14 @@ python examples/polygon_reference.py
 ```
 
 `pycocotools` is used only for development comparison; the MoonBit library does not depend on Python. The native CLI uses `moonbitlang/async@0.21.3` for file access.
+
+## AI 使用说明
+
+开发 MoonDetEval 时，我使用了 OpenAI Codex，帮助我梳理功能、编写和修改 MoonBit 与 Python 代码、补充测试、排查问题以及整理文档。AI 参与了实际代码的辅助开发。
+
+整体开发由我把控技术路线和质量边界。我根据项目需求逐步确定和调整开发目标，并通过实际运行测试、检查边界情况，以及与 `pycocotools` 对照结果来验证功能。
+
+项目参考或改编的 COCO 算法会保留相应的来源和许可证说明。AI 工具不属于评测库的运行依赖，真实分割模型的推理用于外部验收。
 
 ## License and attribution
 
