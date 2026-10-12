@@ -1,21 +1,21 @@
 ///|
 priv struct CocoImage {
-  id : Int
-  width : Int
-  height : Int
+  id : Int32
+  width : Int32
+  height : Int32
 } derive(FromJson)
 
 ///|
 priv struct CocoCategory {
-  id : Int
+  id : Int32
   name : String
 } derive(FromJson)
 
 ///|
 priv struct CocoAnnotation {
   id : Json
-  image_id : Int
-  category_id : Int
+  image_id : Int32
+  category_id : Int32
   bbox : Array[Double]
   area : Double
   iscrowd : Json?
@@ -31,8 +31,8 @@ priv struct CocoGroundTruthFile {
 
 ///|
 priv struct CocoPrediction {
-  image_id : Int
-  category_id : Int
+  image_id : Int32
+  category_id : Int32
   bbox : Array[Double]
   score : Double
 } derive(FromJson)
@@ -92,8 +92,8 @@ pub fn parse_coco_dataset(source : String) -> Dataset raise EvalError {
   let images : Array[Image] = []
   let categories : Array[Category] = []
   let truths : Array[GroundTruth] = []
-  let image_ids : Map[Int, Bool] = Map([])
-  let category_ids : Map[Int, Bool] = Map([])
+  let image_ids : Map[Int32, Bool] = Map([])
+  let category_ids : Map[Int32, Bool] = Map([])
   let truth_ids : Map[Int64, Bool] = Map([])
   for index, entry in raw.images {
     let image : CocoImage = @json.from_json(entry) catch {

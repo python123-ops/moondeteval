@@ -1,8 +1,8 @@
 ///|
-extern "C" fn exit_process(code : Int) = "exit"
+extern "C" fn exit_process(code : Int32) = "exit"
 
 ///|
-async fn fail_command(message : String, code : Int) -> Unit {
+async fn fail_command(message : String, code : Int32) -> Unit {
   @stdio.stderr..write(message).write("\n")
   exit_process(code)
 }

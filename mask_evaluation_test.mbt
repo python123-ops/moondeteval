@@ -1,9 +1,9 @@
 ///|
 fn mask_dataset(
   mask : @moondeteval.CocoRle,
-  area? : Double = 2.0,
-  crowd? : Bool = false,
-  ignore? : Bool = false,
+  area~ : Double = 2.0,
+  crowd~ : Bool = false,
+  ignore~ : Bool = false,
 ) -> @moondeteval.MaskDataset raise @moondeteval.EvalError {
   @moondeteval.MaskDataset::new(
     [@moondeteval.Image::new(1, mask.width(), mask.height())],

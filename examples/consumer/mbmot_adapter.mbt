@@ -3,8 +3,8 @@
 /// The caller supplies the COCO image ID and must ensure generated IDs are
 /// unique across all frames in the evaluation dataset.
 pub fn adapt_mbmot_frame(
-  image_id : Int,
-  first_detection_id : Int,
+  image_id : Int32,
+  first_detection_id : Int32,
   detections : Array[@mbmot.Detection],
 ) -> Array[@moondeteval.Detection] raise @moondeteval.EvalError {
   let result : Array[@moondeteval.Detection] = []
@@ -33,9 +33,9 @@ pub fn adapt_mbmot_frame(
 /// one distinct target image ID. `class_map` maps MBMOT class IDs to dataset
 /// category IDs; track IDs are not part of detector evaluation.
 pub fn adapt_mbmot_frames(
-  frames : Array[(Int, Array[@mbmot.Detection])],
-  class_map : Array[(Int, Int)],
-  first_detection_id : Int,
+  frames : Array[(Int32, Array[@mbmot.Detection])],
+  class_map : Array[(Int32, Int32)],
+  first_detection_id : Int32,
 ) -> Array[@moondeteval.Detection] raise @moondeteval.EvalError {
   for index, (source, _) in class_map {
     for previous in 0..<index {
@@ -44,7 +44,7 @@ pub fn adapt_mbmot_frames(
       }
     }
   }
-  let seen_images : Array[Int] = []
+  let seen_images : Array[Int32] = []
   let result : Array[@moondeteval.Detection] = []
   for (image_id, detections) in frames {
     if seen_images.contains(image_id) {
@@ -52,7 +52,7 @@ pub fn adapt_mbmot_frames(
     }
     seen_images.push(image_id)
     for detection in detections {
-      let mut category_id : Int? = None
+      let mut category_id : Int32? = None
       for (source, target) in class_map {
         if source == detection.class_id() {
           category_id = Some(target)

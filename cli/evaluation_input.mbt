@@ -19,7 +19,9 @@ priv enum CliResult {
 }
 
 ///|
-fn EvaluationInput::sizes(self : EvaluationInput) -> (Int, Int, Int, Int) {
+fn EvaluationInput::sizes(
+  self : EvaluationInput,
+) -> (Int32, Int32, Int32, Int32) {
   match self {
     Bbox(dataset, predictions, other) =>
       (
@@ -78,9 +80,9 @@ async fn load_evaluation_input(
   iou_type : String,
   prediction_format : String,
   comparison_format : String,
-  max_input_bytes : Int,
+  max_input_bytes : Int32,
   remaining_bytes : Int64,
-  max_records : Int,
+  max_records : Int32,
 ) -> (EvaluationInput, Int64) raise @moondeteval.EvalError {
   if iou_type == "segm" {
     let dataset = @moondeteval.parse_coco_mask_dataset(sources[0]) catch {

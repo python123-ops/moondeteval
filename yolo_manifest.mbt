@@ -1,24 +1,24 @@
 ///|
 priv struct YoloManifestJson {
-  category_ids : Array[Int]
+  category_ids : Array[Int32]
   images : Array[Json]
 } derive(FromJson)
 
 ///|
 priv struct YoloFileJson {
-  image_id : Int
+  image_id : Int32
   file : String
 } derive(FromJson)
 
 ///|
 /// One TXT file, relative to its manifest directory.
 pub struct YoloFile {
-  image_id : Int
+  image_id : Int32
   file : String
 }
 
 ///|
-pub fn YoloFile::image_id(self : YoloFile) -> Int {
+pub fn YoloFile::image_id(self : YoloFile) -> Int32 {
   self.image_id
 }
 
@@ -30,12 +30,12 @@ pub fn YoloFile::file(self : YoloFile) -> String {
 ///|
 /// Class mapping and ordered per-image prediction files.
 pub struct YoloManifest {
-  category_ids : Array[Int]
+  category_ids : Array[Int32]
   images : Array[YoloFile]
 }
 
 ///|
-pub fn YoloManifest::category_ids(self : YoloManifest) -> Array[Int] {
+pub fn YoloManifest::category_ids(self : YoloManifest) -> Array[Int32] {
   self.category_ids.copy()
 }
 
@@ -79,8 +79,8 @@ pub fn parse_yolo_manifest(
   if raw.category_ids.is_empty() {
     raise InvalidInput("YOLO manifest category_ids must be nonempty")
   }
-  let known_images : Map[Int, Bool] = Map([])
-  let known_categories : Map[Int, Bool] = Map([])
+  let known_images : Map[Int32, Bool] = Map([])
+  let known_categories : Map[Int32, Bool] = Map([])
   for image in dataset.images {
     known_images[image.id] = true
   }
@@ -94,7 +94,7 @@ pub fn parse_yolo_manifest(
       )
     }
   }
-  let seen_images : Map[Int, Bool] = Map([])
+  let seen_images : Map[Int32, Bool] = Map([])
   let seen_files : Map[String, Bool] = Map([])
   let images : Array[YoloFile] = []
   for index, entry in raw.images {

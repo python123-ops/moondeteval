@@ -54,9 +54,9 @@ fn yolo_fraction(
 pub fn parse_yolo_detections(
   source : String,
   dataset : Dataset,
-  image_id : Int,
-  category_ids : Array[Int],
-  first_detection_id? : Int = 0,
+  image_id : Int32,
+  category_ids : Array[Int32],
+  first_detection_id~ : Int32 = 0,
 ) -> Array[Detection] raise EvalError {
   let mut selected_image : Image? = None
   for image in dataset.images {

@@ -1,9 +1,9 @@
 ///|
 /// An image declared by the ground-truth dataset.
 pub struct Image {
-  id : Int
-  width : Int
-  height : Int
+  id : Int32
+  width : Int32
+  height : Int32
 } derive(Debug, Eq)
 
 ///|
@@ -13,7 +13,11 @@ pub extend Image with Debug::{to_repr}
 pub extend Image with Eq::{equal, not_equal}
 
 ///|
-pub fn Image::new(id : Int, width : Int, height : Int) -> Image raise EvalError {
+pub fn Image::new(
+  id : Int32,
+  width : Int32,
+  height : Int32,
+) -> Image raise EvalError {
   if width <= 0 || height <= 0 {
     raise InvalidInput("image width and height must be positive")
   }
@@ -21,23 +25,23 @@ pub fn Image::new(id : Int, width : Int, height : Int) -> Image raise EvalError 
 }
 
 ///|
-pub fn Image::id(self : Image) -> Int {
+pub fn Image::id(self : Image) -> Int32 {
   self.id
 }
 
 ///|
-pub fn Image::width(self : Image) -> Int {
+pub fn Image::width(self : Image) -> Int32 {
   self.width
 }
 
 ///|
-pub fn Image::height(self : Image) -> Int {
+pub fn Image::height(self : Image) -> Int32 {
   self.height
 }
 
 ///|
 pub struct Category {
-  id : Int
+  id : Int32
   name : String
 } derive(Debug, Eq)
 
@@ -48,7 +52,7 @@ pub extend Category with Debug::{to_repr}
 pub extend Category with Eq::{equal, not_equal}
 
 ///|
-pub fn Category::new(id : Int, name : String) -> Category raise EvalError {
+pub fn Category::new(id : Int32, name : String) -> Category raise EvalError {
   if name.is_empty() {
     raise InvalidInput("category name must be nonempty")
   }
@@ -56,7 +60,7 @@ pub fn Category::new(id : Int, name : String) -> Category raise EvalError {
 }
 
 ///|
-pub fn Category::id(self : Category) -> Int {
+pub fn Category::id(self : Category) -> Int32 {
   self.id
 }
 
@@ -69,8 +73,8 @@ pub fn Category::name(self : Category) -> String {
 /// A validated COCO-style ground-truth object.
 pub struct GroundTruth {
   id : Int64
-  image_id : Int
-  category_id : Int
+  image_id : Int32
+  category_id : Int32
   bbox : Box
   mask : CocoRle?
   area : Double
@@ -87,12 +91,12 @@ pub extend GroundTruth with Eq::{equal, not_equal}
 ///|
 pub fn GroundTruth::new(
   id : Int64,
-  image_id : Int,
-  category_id : Int,
+  image_id : Int32,
+  category_id : Int32,
   bbox : Box,
   area~ : Double,
-  iscrowd? : Bool = false,
-  ignore? : Bool = false,
+  iscrowd~ : Bool = false,
+  ignore~ : Bool = false,
 ) -> GroundTruth raise EvalError {
   if !finite(area) || area < 0.0 {
     raise InvalidInput("ground-truth area must be finite and nonnegative")
@@ -106,12 +110,12 @@ pub fn GroundTruth::id(self : GroundTruth) -> Int64 {
 }
 
 ///|
-pub fn GroundTruth::image_id(self : GroundTruth) -> Int {
+pub fn GroundTruth::image_id(self : GroundTruth) -> Int32 {
   self.image_id
 }
 
 ///|
-pub fn GroundTruth::category_id(self : GroundTruth) -> Int {
+pub fn GroundTruth::category_id(self : GroundTruth) -> Int32 {
   self.category_id
 }
 
@@ -138,9 +142,9 @@ pub fn GroundTruth::ignore(self : GroundTruth) -> Bool {
 ///|
 /// A scored detector output. `id` is stable within one evaluation.
 pub struct Detection {
-  id : Int
-  image_id : Int
-  category_id : Int
+  id : Int32
+  image_id : Int32
+  category_id : Int32
   bbox : Box
   mask : CocoRle?
   score : Double
@@ -154,9 +158,9 @@ pub extend Detection with Eq::{equal, not_equal}
 
 ///|
 pub fn Detection::new(
-  id : Int,
-  image_id : Int,
-  category_id : Int,
+  id : Int32,
+  image_id : Int32,
+  category_id : Int32,
   bbox : Box,
   score : Double,
 ) -> Detection raise EvalError {
@@ -167,17 +171,17 @@ pub fn Detection::new(
 }
 
 ///|
-pub fn Detection::id(self : Detection) -> Int {
+pub fn Detection::id(self : Detection) -> Int32 {
   self.id
 }
 
 ///|
-pub fn Detection::image_id(self : Detection) -> Int {
+pub fn Detection::image_id(self : Detection) -> Int32 {
   self.image_id
 }
 
 ///|
-pub fn Detection::category_id(self : Detection) -> Int {
+pub fn Detection::category_id(self : Detection) -> Int32 {
   self.category_id
 }
 
@@ -205,8 +209,8 @@ pub fn Dataset::new(
   categories : Array[Category],
   truths : Array[GroundTruth],
 ) -> Dataset raise EvalError {
-  let image_ids : Map[Int, Bool] = Map([])
-  let category_ids : Map[Int, Bool] = Map([])
+  let image_ids : Map[Int32, Bool] = Map([])
+  let category_ids : Map[Int32, Bool] = Map([])
   let truth_ids : Map[Int64, Bool] = Map([])
   for image in images {
     if image_ids.contains(image.id) {

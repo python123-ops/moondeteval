@@ -1,5 +1,5 @@
 ///|
-fn parse_counts(value : String) -> Array[Int] raise {
+fn parse_counts(value : String) -> Array[Int32] raise {
   let counts = []
   for part in value.split(",") {
     counts.push(@string.parse_int(part))

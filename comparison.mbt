@@ -51,7 +51,7 @@ pub fn MetricChange::delta(self : MetricChange) -> Double? {
 ///|
 /// Category values use the same metric order as the overall comparison.
 pub struct ClassComparison {
-  category_id : Int
+  category_id : Int32
   metrics : Array[MetricChange]
 } derive(ToJson)
 
@@ -59,7 +59,7 @@ pub struct ClassComparison {
 pub extend ClassComparison with ToJson::{to_json}
 
 ///|
-pub fn ClassComparison::category_id(self : ClassComparison) -> Int {
+pub fn ClassComparison::category_id(self : ClassComparison) -> Int32 {
   self.category_id
 }
 
@@ -82,32 +82,32 @@ pub struct ComparisonReport {
 ///|
 /// Candidate minus baseline non-ignored errors at IoU=0.50.
 pub struct ImageChange {
-  image_id : Int
-  baseline_errors : Int
-  candidate_errors : Int
-  error_delta : Int
+  image_id : Int32
+  baseline_errors : Int32
+  candidate_errors : Int32
+  error_delta : Int32
 } derive(ToJson)
 
 ///|
 pub extend ImageChange with ToJson::{to_json}
 
 ///|
-pub fn ImageChange::image_id(self : ImageChange) -> Int {
+pub fn ImageChange::image_id(self : ImageChange) -> Int32 {
   self.image_id
 }
 
 ///|
-pub fn ImageChange::baseline_errors(self : ImageChange) -> Int {
+pub fn ImageChange::baseline_errors(self : ImageChange) -> Int32 {
   self.baseline_errors
 }
 
 ///|
-pub fn ImageChange::candidate_errors(self : ImageChange) -> Int {
+pub fn ImageChange::candidate_errors(self : ImageChange) -> Int32 {
   self.candidate_errors
 }
 
 ///|
-pub fn ImageChange::error_delta(self : ImageChange) -> Int {
+pub fn ImageChange::error_delta(self : ImageChange) -> Int32 {
   self.error_delta
 }
 

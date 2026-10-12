@@ -1,8 +1,8 @@
 ///|
 priv struct CocoMaskAnnotation {
   id : Json
-  image_id : Int
-  category_id : Int
+  image_id : Int32
+  category_id : Int32
   segmentation : Json
   area : Double
   iscrowd : Json?
@@ -11,8 +11,8 @@ priv struct CocoMaskAnnotation {
 
 ///|
 priv struct CocoMaskPrediction {
-  image_id : Int
-  category_id : Int
+  image_id : Int32
+  category_id : Int32
   segmentation : Json
   score : Double
 } derive(FromJson)
@@ -34,8 +34,8 @@ pub fn parse_coco_mask_dataset(source : String) -> MaskDataset raise EvalError {
   let images : Array[Image] = []
   let categories : Array[Category] = []
   let truths : Array[MaskGroundTruth] = []
-  let image_ids : Map[Int, Image] = Map([])
-  let category_ids : Map[Int, Bool] = Map([])
+  let image_ids : Map[Int32, Image] = Map([])
+  let category_ids : Map[Int32, Bool] = Map([])
   let truth_ids : Map[Int64, Bool] = Map([])
   for index, entry in raw.images {
     let item = try {
@@ -157,8 +157,8 @@ fn parse_mask_predictions(
       raise InvalidInput("detections must be an array: " + error.to_string())
   }
   let predictions : Array[MaskDetection] = []
-  let images : Map[Int, Image] = Map([])
-  let categories : Map[Int, Bool] = Map([])
+  let images : Map[Int32, Image] = Map([])
+  let categories : Map[Int32, Bool] = Map([])
   match dataset {
     Some(value) => {
       for image in value.images() {

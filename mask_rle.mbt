@@ -2,10 +2,10 @@
 /// A validated COCO mask RLE. Runs alternate background and foreground
 /// pixels in column-major image order, starting with background.
 pub struct CocoRle {
-  height : Int
-  width : Int
-  counts : Array[Int]
-  foreground_area : Int
+  height : Int32
+  width : Int32
+  counts : Array[Int32]
+  foreground_area : Int32
 } derive(Debug, Eq)
 
 ///|
@@ -15,7 +15,7 @@ pub extend CocoRle with Debug::{to_repr}
 pub extend CocoRle with Eq::{equal, not_equal}
 
 ///|
-fn rle_pixel_count(height : Int, width : Int) -> Int64 raise EvalError {
+fn rle_pixel_count(height : Int32, width : Int32) -> Int64 raise EvalError {
   if height <= 0 || width <= 0 {
     raise InvalidInput("mask RLE height and width must be positive")
   }
@@ -31,9 +31,9 @@ fn rle_pixel_count(height : Int, width : Int) -> Int64 raise EvalError {
 /// must sum to height * width; an initial zero run represents a mask whose
 /// first pixel is foreground. Dimensions are limited to Int-sized images.
 pub fn CocoRle::new(
-  height : Int,
-  width : Int,
-  counts : Array[Int],
+  height : Int32,
+  width : Int32,
+  counts : Array[Int32],
 ) -> CocoRle raise EvalError {
   let pixels = rle_pixel_count(height, width)
   if counts.is_empty() {
@@ -59,22 +59,22 @@ pub fn CocoRle::new(
 }
 
 ///|
-pub fn CocoRle::height(self : CocoRle) -> Int {
+pub fn CocoRle::height(self : CocoRle) -> Int32 {
   self.height
 }
 
 ///|
-pub fn CocoRle::width(self : CocoRle) -> Int {
+pub fn CocoRle::width(self : CocoRle) -> Int32 {
   self.width
 }
 
 ///|
-pub fn CocoRle::area(self : CocoRle) -> Int {
+pub fn CocoRle::area(self : CocoRle) -> Int32 {
   self.foreground_area
 }
 
 ///|
-fn CocoRle::intersection(self : CocoRle, other : CocoRle) -> Int {
+fn CocoRle::intersection(self : CocoRle, other : CocoRle) -> Int32 {
   let mut left_index = 0
   let mut right_index = 0
   let mut left_remaining = self.counts[0]

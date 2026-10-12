@@ -105,10 +105,7 @@ test "two MBMOT frames preserve image and category mapping with unique IDs" {
   let reference = @moondeteval.evaluate_with_config(dataset, direct, config)
   assert_eq(adapted.summary().ap50(), 1.0)
   assert_eq(adapted.summary().to_json(), reference.summary().to_json())
-  assert_eq(
-    adapted.image_summaries().to_json(),
-    reference.image_summaries().to_json(),
-  )
+  assert_eq(Json(adapted.image_summaries()), Json(reference.image_summaries()))
   assert_eq(adapted.image_summaries().length(), 2)
 }
 

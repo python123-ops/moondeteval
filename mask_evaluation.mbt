@@ -7,12 +7,12 @@ pub struct MaskGroundTruth {
 ///|
 pub fn MaskGroundTruth::new(
   id : Int64,
-  image_id : Int,
-  category_id : Int,
+  image_id : Int32,
+  category_id : Int32,
   mask : CocoRle,
   area~ : Double,
-  iscrowd? : Bool = false,
-  ignore? : Bool = false,
+  iscrowd~ : Bool = false,
+  ignore~ : Bool = false,
 ) -> MaskGroundTruth raise EvalError {
   let value = GroundTruth::new(
     id,
@@ -37,12 +37,12 @@ pub fn MaskGroundTruth::id(self : MaskGroundTruth) -> Int64 {
 }
 
 ///|
-pub fn MaskGroundTruth::image_id(self : MaskGroundTruth) -> Int {
+pub fn MaskGroundTruth::image_id(self : MaskGroundTruth) -> Int32 {
   self.value.image_id
 }
 
 ///|
-pub fn MaskGroundTruth::category_id(self : MaskGroundTruth) -> Int {
+pub fn MaskGroundTruth::category_id(self : MaskGroundTruth) -> Int32 {
   self.value.category_id
 }
 
@@ -74,9 +74,9 @@ pub struct MaskDetection {
 
 ///|
 pub fn MaskDetection::new(
-  id : Int,
-  image_id : Int,
-  category_id : Int,
+  id : Int32,
+  image_id : Int32,
+  category_id : Int32,
   mask : CocoRle,
   score : Double,
 ) -> MaskDetection raise EvalError {
@@ -96,17 +96,17 @@ pub fn MaskDetection::new(
 }
 
 ///|
-pub fn MaskDetection::id(self : MaskDetection) -> Int {
+pub fn MaskDetection::id(self : MaskDetection) -> Int32 {
   self.value.id
 }
 
 ///|
-pub fn MaskDetection::image_id(self : MaskDetection) -> Int {
+pub fn MaskDetection::image_id(self : MaskDetection) -> Int32 {
   self.value.image_id
 }
 
 ///|
-pub fn MaskDetection::category_id(self : MaskDetection) -> Int {
+pub fn MaskDetection::category_id(self : MaskDetection) -> Int32 {
   self.value.category_id
 }
 
@@ -150,7 +150,7 @@ pub fn MaskDataset::new(
     categories,
     truths.map(fn(item) { item.value }),
   )
-  let images_by_id : Map[Int, Image] = Map([])
+  let images_by_id : Map[Int32, Image] = Map([])
   for image in value.images {
     images_by_id[image.id] = image
   }
@@ -196,8 +196,8 @@ pub fn evaluate_masks_with_config(
   predictions : Array[MaskDetection],
   config : EvalConfig,
 ) -> EvaluationReport raise EvalError {
-  let images : Map[Int, Image] = Map([])
-  let categories : Map[Int, Bool] = Map([])
+  let images : Map[Int32, Image] = Map([])
+  let categories : Map[Int32, Bool] = Map([])
   for image in dataset.value.images {
     images[image.id] = image
   }

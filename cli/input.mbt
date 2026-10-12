@@ -2,7 +2,7 @@
 /// Read one UTF-8 input with both per-file and remaining-total byte limits.
 async fn read_limited_input(
   path : String,
-  max_input_bytes : Int,
+  max_input_bytes : Int32,
   remaining_bytes : Int64,
 ) -> (String, Int64) raise @moondeteval.EvalError {
   let size = @fs.file_size(path) catch {
@@ -70,9 +70,9 @@ async fn load_predictions(
   path : String,
   format : String,
   dataset : @moondeteval.Dataset,
-  max_input_bytes : Int,
+  max_input_bytes : Int32,
   remaining_bytes : Int64,
-  max_records : Int,
+  max_records : Int32,
 ) -> (Array[@moondeteval.Detection], Int64) raise @moondeteval.EvalError {
   if format == "coco" {
     let detections = @moondeteval.parse_coco_detections(source) catch {
@@ -81,8 +81,8 @@ async fn load_predictions(
           "detections " + path + ": " + error.message(),
         )
     }
-    let image_ids : Map[Int, Bool] = Map([])
-    let category_ids : Map[Int, Bool] = Map([])
+    let image_ids : Map[Int32, Bool] = Map([])
+    let category_ids : Map[Int32, Bool] = Map([])
     for image in dataset.images() {
       image_ids[image.id()] = true
     }

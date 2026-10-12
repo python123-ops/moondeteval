@@ -3,12 +3,12 @@
 /// Counts from the fourth run onward are differences from two runs earlier.
 /// At most seven characters per run are accepted for Int-sized masks.
 pub fn CocoRle::from_compressed(
-  height : Int,
-  width : Int,
+  height : Int32,
+  width : Int32,
   encoded : String,
 ) -> CocoRle raise EvalError {
   let pixels = rle_pixel_count(height, width)
-  let counts : Array[Int] = []
+  let counts : Array[Int32] = []
   let mut offset = 0
   let mut total = 0L
   while offset < encoded.length() {
@@ -74,7 +74,7 @@ pub fn CocoRle::to_compressed(self : CocoRle) -> String {
 }
 
 ///|
-fn rle_json_integer(value : Json, location : String) -> Int raise EvalError {
+fn rle_json_integer(value : Json, location : String) -> Int32 raise EvalError {
   match value {
     Number(number, ..) if finite(number) &&
       number >= 0.0 &&

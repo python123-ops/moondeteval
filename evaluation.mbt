@@ -83,7 +83,7 @@ pub fn Metrics::ar_large(self : Metrics) -> Double {
 
 ///|
 pub struct ClassMetrics {
-  category_id : Int
+  category_id : Int32
   metrics : Metrics
 } derive(ToJson)
 
@@ -91,7 +91,7 @@ pub struct ClassMetrics {
 pub extend ClassMetrics with ToJson::{to_json}
 
 ///|
-pub fn ClassMetrics::category_id(self : ClassMetrics) -> Int {
+pub fn ClassMetrics::category_id(self : ClassMetrics) -> Int32 {
   self.category_id
 }
 
@@ -119,38 +119,38 @@ pub struct EvaluationReport {
 ///|
 /// Input sizes and detections retained by the all-area maxDets=100 evaluation.
 pub struct InputCounts {
-  images : Int
-  categories : Int
-  ground_truths : Int
-  detections : Int
-  evaluated_detections : Int
+  images : Int32
+  categories : Int32
+  ground_truths : Int32
+  detections : Int32
+  evaluated_detections : Int32
 } derive(ToJson)
 
 ///|
 pub extend InputCounts with ToJson::{to_json}
 
 ///|
-pub fn InputCounts::images(self : InputCounts) -> Int {
+pub fn InputCounts::images(self : InputCounts) -> Int32 {
   self.images
 }
 
 ///|
-pub fn InputCounts::categories(self : InputCounts) -> Int {
+pub fn InputCounts::categories(self : InputCounts) -> Int32 {
   self.categories
 }
 
 ///|
-pub fn InputCounts::ground_truths(self : InputCounts) -> Int {
+pub fn InputCounts::ground_truths(self : InputCounts) -> Int32 {
   self.ground_truths
 }
 
 ///|
-pub fn InputCounts::detections(self : InputCounts) -> Int {
+pub fn InputCounts::detections(self : InputCounts) -> Int32 {
   self.detections
 }
 
 ///|
-pub fn InputCounts::evaluated_detections(self : InputCounts) -> Int {
+pub fn InputCounts::evaluated_detections(self : InputCounts) -> Int32 {
   self.evaluated_detections
 }
 
@@ -159,8 +159,8 @@ pub fn InputCounts::evaluated_detections(self : InputCounts) -> Int {
 pub struct QualityWarning {
   source : String
   record_id : Int64
-  image_id : Int
-  category_id : Int
+  image_id : Int32
+  category_id : Int32
   kind : String
 }
 
@@ -192,12 +192,12 @@ pub fn QualityWarning::record_id(self : QualityWarning) -> Int64 {
 }
 
 ///|
-pub fn QualityWarning::image_id(self : QualityWarning) -> Int {
+pub fn QualityWarning::image_id(self : QualityWarning) -> Int32 {
   self.image_id
 }
 
 ///|
-pub fn QualityWarning::category_id(self : QualityWarning) -> Int {
+pub fn QualityWarning::category_id(self : QualityWarning) -> Int32 {
   self.category_id
 }
 
@@ -251,38 +251,38 @@ pub fn EvaluationReport::classes(
 ///|
 /// Per-image decisions at IoU=0.50, all areas, maxDets=100 per category.
 pub struct ImageSummary {
-  image_id : Int
-  tp : Int
-  fp : Int
-  fn_count : Int
-  ignored : Int
+  image_id : Int32
+  tp : Int32
+  fp : Int32
+  fn_count : Int32
+  ignored : Int32
 } derive(ToJson)
 
 ///|
 pub extend ImageSummary with ToJson::{to_json}
 
 ///|
-pub fn ImageSummary::image_id(self : ImageSummary) -> Int {
+pub fn ImageSummary::image_id(self : ImageSummary) -> Int32 {
   self.image_id
 }
 
 ///|
-pub fn ImageSummary::tp(self : ImageSummary) -> Int {
+pub fn ImageSummary::tp(self : ImageSummary) -> Int32 {
   self.tp
 }
 
 ///|
-pub fn ImageSummary::fp(self : ImageSummary) -> Int {
+pub fn ImageSummary::fp(self : ImageSummary) -> Int32 {
   self.fp
 }
 
 ///|
-pub fn ImageSummary::fn_count(self : ImageSummary) -> Int {
+pub fn ImageSummary::fn_count(self : ImageSummary) -> Int32 {
   self.fn_count
 }
 
 ///|
-pub fn ImageSummary::ignored(self : ImageSummary) -> Int {
+pub fn ImageSummary::ignored(self : ImageSummary) -> Int32 {
   self.ignored
 }
 
@@ -297,7 +297,7 @@ pub fn EvaluationReport::image_summaries(
 /// A 101-point COCO precision envelope at one category and IoU threshold.
 /// A value of -1 means this category has no eligible ground truth.
 pub struct PrecisionRecallCurve {
-  category_id : Int
+  category_id : Int32
   iou_threshold : Double
   precision : Array[Double]
   max_recall : Double
@@ -308,7 +308,7 @@ pub struct PrecisionRecallCurve {
 pub extend PrecisionRecallCurve with ToJson::{to_json}
 
 ///|
-pub fn PrecisionRecallCurve::category_id(self : PrecisionRecallCurve) -> Int {
+pub fn PrecisionRecallCurve::category_id(self : PrecisionRecallCurve) -> Int32 {
   self.category_id
 }
 
@@ -355,9 +355,9 @@ pub fn EvaluationReport::pr_curves(
 /// Diagnostics use the all-area range and maxDets=100.
 pub struct MatchDiagnostic {
   iou_threshold : Double
-  image_id : Int
-  category_id : Int
-  detection_id : Int?
+  image_id : Int32
+  category_id : Int32
+  detection_id : Int32?
   ground_truth_id : Int64?
   iou : Double
   status : String
@@ -393,17 +393,17 @@ pub fn MatchDiagnostic::iou_threshold(self : MatchDiagnostic) -> Double {
 }
 
 ///|
-pub fn MatchDiagnostic::image_id(self : MatchDiagnostic) -> Int {
+pub fn MatchDiagnostic::image_id(self : MatchDiagnostic) -> Int32 {
   self.image_id
 }
 
 ///|
-pub fn MatchDiagnostic::category_id(self : MatchDiagnostic) -> Int {
+pub fn MatchDiagnostic::category_id(self : MatchDiagnostic) -> Int32 {
   self.category_id
 }
 
 ///|
-pub fn MatchDiagnostic::detection_id(self : MatchDiagnostic) -> Int? {
+pub fn MatchDiagnostic::detection_id(self : MatchDiagnostic) -> Int32? {
   self.detection_id
 }
 
@@ -451,10 +451,10 @@ pub extend EvalConfig with ToJson::{to_json}
 ///|
 pub fn EvalConfig::new(
   iou_thresholds : Array[Double],
-  include_diagnostics? : Bool = false,
-  ignore_policy? : String = "coco_bbox",
-  include_image_summaries? : Bool = false,
-  include_pr_curves? : Bool = false,
+  include_diagnostics~ : Bool = false,
+  ignore_policy~ : String = "coco_bbox",
+  include_image_summaries~ : Bool = false,
+  include_pr_curves~ : Bool = false,
 ) -> EvalConfig raise EvalError {
   if iou_thresholds.is_empty() || iou_thresholds.length() > 100 {
     raise InvalidConfig("IoU thresholds must contain 1 to 100 values")
@@ -525,18 +525,18 @@ pub fn EvalConfig::ignore_policy(self : EvalConfig) -> String {
 ///|
 priv struct RankedDetection {
   detection : Detection
-  order : Int
+  order : Int32
 }
 
 ///|
 priv struct RankedTruth {
   truth : GroundTruth
-  order : Int
+  order : Int32
 }
 
 ///|
 priv struct PreparedImage {
-  image_id : Int
+  image_id : Int32
   truths : Array[RankedTruth]
   all_truths : Array[GroundTruth]
   candidates : Array[RankedDetection]
@@ -545,7 +545,7 @@ priv struct PreparedImage {
 ///|
 priv struct MatchRecord {
   score : Double
-  order : Int
+  order : Int32
   matched : Bool
   ignored : Bool
 }
@@ -587,7 +587,7 @@ fn truth_ignored(
 }
 
 ///|
-fn ranked_before(left : RankedDetection, right : RankedDetection) -> Int {
+fn ranked_before(left : RankedDetection, right : RankedDetection) -> Int32 {
   if left.detection.score > right.detection.score {
     -1
   } else if left.detection.score < right.detection.score {
@@ -598,7 +598,7 @@ fn ranked_before(left : RankedDetection, right : RankedDetection) -> Int {
 }
 
 ///|
-fn record_before(left : MatchRecord, right : MatchRecord) -> Int {
+fn record_before(left : MatchRecord, right : MatchRecord) -> Int32 {
   if left.score > right.score {
     -1
   } else if left.score < right.score {
@@ -613,11 +613,11 @@ fn record_before(left : MatchRecord, right : MatchRecord) -> Int {
 fn prepare_category(
   dataset : Dataset,
   detections : Array[RankedDetection],
-  category_id : Int,
+  category_id : Int32,
 ) -> Array[PreparedImage] {
-  let truths_by_image : Map[Int, Array[RankedTruth]] = Map([])
-  let all_truths_by_image : Map[Int, Array[GroundTruth]] = Map([])
-  let detections_by_image : Map[Int, Array[RankedDetection]] = Map([])
+  let truths_by_image : Map[Int32, Array[RankedTruth]] = Map([])
+  let all_truths_by_image : Map[Int32, Array[GroundTruth]] = Map([])
+  let detections_by_image : Map[Int32, Array[RankedDetection]] = Map([])
   for order, truth in dataset.truths {
     match all_truths_by_image.get(truth.image_id) {
       Some(items) => items.push(truth)
@@ -672,7 +672,7 @@ fn prepare_category(
 /// A read-only explanation of an unmatched, non-ignored detection.
 fn classify_false_positive(
   all_truths : Array[GroundTruth],
-  category_id : Int,
+  category_id : Int32,
   detection : Detection,
   truths : Array[RankedTruth],
   used : Array[Bool],
@@ -708,14 +708,14 @@ fn classify_false_positive(
 ///|
 fn evaluate_curve(
   prepared : Array[PreparedImage],
-  category_id : Int,
+  category_id : Int32,
   threshold : Double,
   lower : Double,
   upper : Double,
-  max_dets : Int,
+  max_dets : Int32,
   trace : Array[MatchDiagnostic]?,
   respect_explicit_ignore : Bool,
-  capture_samples? : Bool = false,
+  capture_samples~ : Bool = false,
 ) -> CurveValue {
   let records : Array[MatchRecord] = []
   let mut positives = 0
@@ -938,7 +938,7 @@ fn average(values : Array[Double]) -> Double {
 ///|
 fn metrics_for_category(
   prepared : Array[PreparedImage],
-  category_id : Int,
+  category_id : Int32,
   thresholds : Array[Double],
   diagnostics : Array[MatchDiagnostic]?,
   curves : Array[PrecisionRecallCurve]?,
@@ -1136,15 +1136,15 @@ fn evaluate_internal(
   dataset : Dataset,
   predictions : Array[Detection],
   config : EvalConfig,
-  iou_type? : String = "bbox",
+  iou_type~ : String = "bbox",
 ) -> EvaluationReport raise EvalError {
   if iou_type == "bbox" && config.ignore_policy == "coco_segm" {
     raise InvalidConfig("coco_segm policy requires evaluate_masks")
   }
-  let image_ids : Map[Int, Bool] = Map([])
-  let images_by_id : Map[Int, Image] = Map([])
-  let category_ids : Map[Int, Bool] = Map([])
-  let detection_ids : Map[Int, Bool] = Map([])
+  let image_ids : Map[Int32, Bool] = Map([])
+  let images_by_id : Map[Int32, Image] = Map([])
+  let category_ids : Map[Int32, Bool] = Map([])
+  let detection_ids : Map[Int32, Bool] = Map([])
   for image in dataset.images {
     image_ids[image.id] = true
     images_by_id[image.id] = image
@@ -1154,7 +1154,7 @@ fn evaluate_internal(
   }
   let detections : Array[RankedDetection] = []
   let quality_warnings : Array[QualityWarning] = []
-  let per_image_category : Map[String, Int] = Map([])
+  let per_image_category : Map[String, Int32] = Map([])
   let mut evaluated_detections = 0
   for truth in dataset.truths {
     match images_by_id.get(truth.image_id) {
@@ -1269,7 +1269,7 @@ fn evaluate_internal(
   }
   let image_summaries : Array[ImageSummary] = []
   if config.include_image_summaries {
-    let counts_by_image : Map[Int, Array[Int]] = Map([])
+    let counts_by_image : Map[Int32, Array[Int32]] = Map([])
     for image in dataset.images {
       counts_by_image[image.id] = [0, 0, 0, 0]
     }

@@ -28,9 +28,9 @@ fn polygon_coordinate(
 fn polygon_event(
   previous : PolygonPoint,
   current : PolygonPoint,
-  height : Int,
-  width : Int,
-) -> Int? {
+  height : Int32,
+  width : Int32,
+) -> Int32? {
   if previous.x == current.x {
     return None
   }
@@ -52,15 +52,15 @@ fn polygon_event(
 
 ///|
 fn rasterize_polygon(
-  height : Int,
-  width : Int,
+  height : Int32,
+  width : Int32,
   points : Array[PolygonPoint],
 ) -> CocoRle raise EvalError {
   let pixels = rle_pixel_count(height, width).to_int()
   if points.length() < 3 {
     return CocoRle::new(height, width, [pixels])
   }
-  let events : Array[Int] = []
+  let events : Array[Int32] = []
   let mut previous : PolygonPoint? = None
   for index in 0..<points.length() {
     let first = points[index]
@@ -132,8 +132,8 @@ fn rasterize_polygon(
 fn polygon_union(
   left : CocoRle,
   right : CocoRle,
-  remaining : Int,
-) -> (CocoRle, Int) raise EvalError {
+  remaining : Int32,
+) -> (CocoRle, Int32) raise EvalError {
   let counts = [0]
   let mut active = false
   let mut left_index = 0
@@ -181,8 +181,8 @@ fn polygon_union(
 /// quantization. Limits: 100000 total vertices, 2000000 boundary samples and
 /// 2000000 union run steps per mask; scaled coordinates fit signed 32-bit Int.
 pub fn CocoRle::from_polygons(
-  height : Int,
-  width : Int,
+  height : Int32,
+  width : Int32,
   polygons : Array[Array[Double]],
 ) -> CocoRle raise EvalError {
   let _ = rle_pixel_count(height, width)
@@ -253,8 +253,8 @@ pub fn CocoRle::from_polygons(
 ///|
 fn parse_segmentation_value(
   value : Json,
-  height : Int,
-  width : Int,
+  height : Int32,
+  width : Int32,
 ) -> CocoRle raise EvalError {
   let mask = match value {
     Array(values) => {
@@ -302,8 +302,8 @@ fn parse_segmentation_value(
 /// declared image dimensions. RLE sizes must agree; polygon rings are unioned.
 pub fn parse_coco_segmentation(
   source : String,
-  height : Int,
-  width : Int,
+  height : Int32,
+  width : Int32,
 ) -> CocoRle raise EvalError {
   let value = @json.parse(source) catch {
     _ => raise InvalidInput("segmentation is not valid JSON")
