@@ -1,6 +1,7 @@
 """Integration checks for the source-checkout batch evaluator."""
 
 import hashlib
+import importlib.util
 import json
 import subprocess
 import sys
@@ -9,11 +10,11 @@ import unittest
 from unittest import mock
 from pathlib import Path
 
-from examples import batch_eval
-
-
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "examples/batch_eval.py"
+SPEC = importlib.util.spec_from_file_location("moondeteval_batch_eval", SCRIPT)
+batch_eval = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(batch_eval)
 TRUTH = ROOT / "examples/compare-ground-truth.json"
 BASE = ROOT / "examples/compare-baseline.json"
 CANDIDATE = ROOT / "examples/compare-candidate.json"
