@@ -8,6 +8,13 @@
   const DIAG_PAGE_SIZE = 40;
   const MAX_FILE_BYTES = 128 * 1024 * 1024;
   let loadSequence = 0;
+  let batchState = null;
+
+  function clearBatch() {
+    batchState = null;
+    $("batch-view").hidden = true;
+    $("batch-status").textContent = "";
+  }
 
   function cell(row, value, header = false) {
     const element = document.createElement(header ? "th" : "td");
@@ -214,7 +221,7 @@
     pager("diag", state.diagPage, result.pages, result.total);
   }
 
-  async function loadReport(name, size, read) {
+  async function loadReport(name, size, read, verified = false) {
     const sequence = ++loadSequence;
     state.model = null;
     $("report-view").hidden = true;
@@ -223,7 +230,7 @@
       $("load-status").textContent = "加载失败";
       $("load-error").textContent = "文件超过 128 MiB 查看上限。";
       $("load-error").hidden = false;
-      return;
+      return false;
     }
     $("load-status").textContent = `正在读取 ${name}…`;
     await new Promise((resolve) => requestAnimationFrame(resolve));
@@ -231,9 +238,9 @@
     try {
       const text = await read();
       if (sequence !== loadSequence) return;
-      const byteSize = new Blob([text]).size;
+      const byteSize = verified ? size : new Blob([text]).size;
       if (byteSize > MAX_FILE_BYTES) throw new Error("文件超过 128 MiB 查看上限。");
-      state.model = api.parseReport(text);
+      state.model = verified ? text : api.parseReport(text);
       state.imagePage = 1;
       state.diagPage = 1;
       $("diag-status").value = "";
@@ -245,18 +252,23 @@
       renderCurveOptions();
       renderDiagnosticOptions();
       $("report-view").hidden = false;
-      $("load-status").textContent = `已加载 ${name}（${(byteSize / 1048576).toFixed(1)} MiB，解析及首屏渲染 ${(performance.now() - start).toFixed(0)} ms）`;
+      $("load-status").textContent = `已加载 ${name}（${(byteSize / 1048576).toFixed(1)} MiB，读取校验及首屏渲染 ${(performance.now() - start).toFixed(0)} ms）`;
+      return true;
     } catch (error) {
       if (sequence !== loadSequence) return;
       state.model = null;
       $("report-view").hidden = true;
       $("load-status").textContent = "加载失败";
-      $("load-error").textContent = error.message;
+      $("load-error").textContent = ["NotFoundError", "NotReadableError"].includes(error.name)
+        ? "浏览器无法读取所选文件。请确认文件仍在原处且可访问；Windows 下可尝试缩短文件夹路径或模型名后重新选择。"
+        : error.message;
       $("load-error").hidden = false;
+      return false;
     }
   }
 
   async function loadDemo(id) {
+    clearBatch();
     await loadReport(`演示：${id}`, 0, async () => {
       const demo = globalThis.MoonDetEvalDemos.get(id);
       if (location.protocol === "file:") throw new Error("在线示例需要通过 HTTP 打开产品网站；本地 JSON 文件仍可直接选择。");
@@ -268,7 +280,74 @@
 
   $("report-file").addEventListener("change", (event) => {
     const file = event.target.files[0];
-    if (file) loadReport(file.name, file.size, () => file.text());
+    if (file) { clearBatch(); loadReport(file.name, file.size, () => file.text()); }
+  });
+  async function selectBatchModel() {
+    const current = batchState;
+    if (!current) return;
+    const entry = current.index.models.find(item => item.name === $("batch-model").value);
+    for (const [index, row] of Array.from($("batch-table").querySelectorAll("tbody tr")).entries()) {
+      row.setAttribute("aria-current", String(current.index.models[index].name === entry.name));
+    }
+    const file = current.files.get(entry.file);
+    $("batch-status").textContent = `正在校验 ${entry.file}…`;
+    const success = await loadReport(entry.name, file.size, async () => {
+      const bytes = await file.arrayBuffer();
+      return globalThis.MoonDetEvalBatch.verifyReport(current.index, entry, bytes, globalThis.crypto?.subtle);
+    }, true);
+    if (success === undefined) return;
+    if (batchState === current && $("batch-model").value === entry.name) $("batch-status").textContent = success
+      ? `${entry.file}：SHA-256、评测配置、计数和摘要与索引一致。`
+      : "报告校验失败。索引摘要保留在上表，详细报告未显示。";
+  }
+  $("batch-model").addEventListener("change", selectBatchModel);
+  $("batch-folder").addEventListener("change", async event => {
+    const selected = Array.from(event.target.files);
+    if (!selected.length) return;
+    clearBatch();
+    const sequence = ++loadSequence;
+    state.model = null;
+    $("report-view").hidden = true;
+    $("load-error").hidden = true;
+    $("load-status").textContent = "正在读取批量索引…";
+    try {
+      const indexes = selected.filter(file => file.name === "index.json");
+      if (indexes.length !== 1) throw new Error("请选择只含一份 index.json 的批量结果文件夹。");
+      const indexFile = indexes[0];
+      if (!indexFile.webkitRelativePath) throw new Error("当前浏览器未提供文件夹路径，请使用支持目录选择的浏览器，或逐个导入 JSON 报告。");
+      if (indexFile.size > 4 * 1048576) throw new Error("批量索引超过 4 MiB 上限。");
+      const index = globalThis.MoonDetEvalBatch.parseIndex(await indexFile.text());
+      if (sequence !== loadSequence) return;
+      const prefix = indexFile.webkitRelativePath.slice(0, -indexFile.name.length);
+      const paths = new Map();
+      for (const file of selected) {
+        const relative = file.webkitRelativePath;
+        if (paths.has(relative)) throw new Error("选择的文件夹中存在重复文件路径。");
+        paths.set(relative, file);
+      }
+      const files = new Map();
+      for (const entry of index.models) {
+        const file = paths.get(prefix + entry.file);
+        if (!file) throw new Error(`缺少报告：${entry.file}`);
+        if (file.size > MAX_FILE_BYTES) throw new Error(`${entry.file} 超过 128 MiB 查看上限。`);
+        files.set(entry.file, file);
+      }
+      batchState = {index, files};
+      $("batch-meta").textContent = `格式 ${index.format} · ${index.iouType} · evaluator ${index.version} · 基线 ${index.baseline} · ${index.truthCounts.images} 张图片。下表为索引原有摘要；选中模型后校验对应报告。`;
+      table("batch-table", ["模型", "AP", "AP50", "AP75", "Δ AP", "Δ AP50"], index.models.map(entry => [entry.name,
+        ...["ap", "ap50", "ap75"].map(key => api.formatValue(entry.summary[key])), ...["ap", "ap50"].map(key => entry.delta[key] === null ? "—" : entry.delta[key].toFixed(4))]));
+      options("batch-model", index.models.map(entry => [entry.name, entry.name]));
+      $("batch-model").value = index.baseline;
+      $("batch-view").hidden = false;
+    } catch (error) {
+      if (sequence !== loadSequence) return;
+      clearBatch();
+      $("load-status").textContent = "加载失败";
+      $("load-error").textContent = error.message;
+      $("load-error").hidden = false;
+      return;
+    }
+    await selectBatchModel();
   });
   for (const button of document.querySelectorAll("[data-demo]")) button.addEventListener("click", () => loadDemo(button.dataset.demo));
   const initialDemo = new URLSearchParams(location.search).get("demo");

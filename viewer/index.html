@@ -7,13 +7,14 @@
   <link rel="stylesheet" href="style.css">
   <script defer src="model.js"></script>
   <script defer src="demos.js"></script>
+  <script defer src="batch.js"></script>
   <script defer src="app.js"></script>
 </head>
 <body>
   <main>
     <header class="hero">
       <div class="eyebrow">MOONDETEVAL · 本地查看器</div>
-      <h1>读懂一次检测评测</h1>
+      <h1>评测报告查看器</h1>
       <p>选择 MoonDetEval schema 0.1.0 的 bbox 或 mask JSON 报告。文件只在本机浏览器中读取，不上传，也不重新计算指标。</p>
       <p><a href="../">MoonDetEval 产品网站 / Product home</a></p>
       <div class="controls" aria-label="示例报告">
@@ -23,9 +24,20 @@
       </div>
       <label class="file-picker" for="report-file">选择 JSON 报告</label>
       <input id="report-file" type="file" accept=".json,application/json">
+      <label class="file-picker" for="batch-folder">选择批量结果文件夹</label>
+      <input id="batch-folder" type="file" webkitdirectory multiple>
+      <p class="subtle">批量文件夹需含 index.json 和对应的 *.report.json。支持格式 1 的 bbox、格式 2 的 bbox / segm；按需读取报告并核对 SHA-256。</p>
       <p id="load-status" class="subtle" role="status" aria-live="polite">尚未选择文件</p>
       <p id="load-error" class="error" role="alert" hidden></p>
     </header>
+
+    <section id="batch-view" class="panel" hidden>
+      <h2>批量结果</h2>
+      <p id="batch-meta" class="subtle"></p>
+      <div class="table-wrap"><table id="batch-table"></table></div>
+      <div class="controls filters"><label>查看模型 <select id="batch-model"></select></label></div>
+      <p id="batch-status" class="subtle" role="status" aria-live="polite"></p>
+    </section>
 
     <div id="report-view" hidden>
       <section class="panel">

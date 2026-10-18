@@ -2,18 +2,18 @@
 * { box-sizing: border-box; }
 body { margin: 0; }
 main { max-width: 1120px; margin: auto; padding: 24px 20px 72px; }
-.hero { padding: 34px 38px; border-radius: 20px; color: white; background: linear-gradient(120deg, #123c48, #1c6874); margin-bottom: 22px; }
-.eyebrow { color: #a7e0d8; font-size: 12px; font-weight: 700; letter-spacing: .13em; }
+.hero { padding: 26px 0; border-bottom: 1px solid #d7dfda; margin-bottom: 22px; }
+.eyebrow { color: #53625c; font-size: 12px; font-weight: 500; }
 h1 { margin: 12px 0; font-size: clamp(28px, 4vw, 42px); }
 h2 { margin: 0 0 16px; font-size: 20px; }
-p { line-height: 1.6; }
+p { line-height: 1.6; overflow-wrap: anywhere; }
 .hero p { max-width: 790px; }
 .file-picker, button { display: inline-block; padding: 9px 16px; border: 1px solid #a5c7cb; border-radius: 9px; background: #fff; color: #123c48; font: inherit; font-weight: 600; cursor: pointer; }
 .file-picker:hover, button:hover { background: #dcf4f1; }
 #report-file { position: absolute; width: 1px; height: 1px; opacity: 0; }
 #report-file:focus-visible + p, .file-picker:focus-within { outline: 3px solid #e4c55d; }
-.hero .subtle { color: #d5e9eb; }
-.panel { padding: 24px 28px; border-radius: 16px; background: white; margin: 16px 0; box-shadow: 0 2px 12px #1939410d; }
+.hero .subtle { color: #53625c; }
+.panel { padding: 24px 28px; border: 1px solid #d7dfda; border-radius: 3px; background: white; margin: 16px 0; }
 .section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px 24px; }
 .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
 .filters { margin: 10px 0 18px; }
@@ -32,4 +32,10 @@ tbody tr:nth-child(even) { background: #f9fbfb; }
 button:disabled { opacity: .45; cursor: not-allowed; }
 canvas { display: block; max-width: 100%; margin: 10px auto 0; }
 [hidden] { display: none !important; }
+#batch-folder { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.hero .controls { margin-bottom: 16px; }
+.file-picker { margin: 0 8px 8px 0; }
+.hero:has(input[type=file]:focus-visible) .file-picker { outline: 3px solid #176b51; outline-offset: 2px; }
+button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid #176b51; outline-offset: 3px; }
+#batch-table tr[aria-current=true] { background: #edf5ef; }
 @media (max-width: 650px) { main { padding: 12px; } .hero, .panel { padding: 22px 18px; } .controls label { width: 100%; } select, input:not([type=file]) { max-width: none; width: 100%; } }

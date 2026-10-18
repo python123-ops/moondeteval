@@ -25,7 +25,7 @@ jobs:
       - name: Test all stable targets
         run: moon test --target all --deny-warn
       - name: Test read-only report viewer model
-        run: node --test viewer/model.test.cjs
+        run: node --test viewer/model.test.cjs viewer/batch.test.cjs
       - name: Test bbox and segm batch evaluation index
         run: python3 -m unittest examples/batch_eval_test.py -v
       - name: Validate release archive contents

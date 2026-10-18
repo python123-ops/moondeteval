@@ -17,6 +17,7 @@ ASSETS = {
     "favicon.svg": "site/favicon.svg", "viewer/index.html": "viewer/index.html",
     "viewer/style.css": "viewer/style.css", "viewer/app.js": "viewer/app.js",
     "viewer/model.js": "viewer/model.js", "viewer/demos.js": "viewer/demos.js",
+    "viewer/batch.js": "viewer/batch.js",
 }
 
 

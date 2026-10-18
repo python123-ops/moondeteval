@@ -2,6 +2,8 @@
 
 ## Unreleased (source checkout)
 
+- Add local batch-folder inspection to the report viewer: format-1 bbox and format-2 bbox/segm indexes, model summaries and switching, on-demand SHA-256 and report/index consistency checks, with missing-file and stale-load handling. Simplify the bilingual product site around installation, supported inputs and report examples.
+
 - Prepare the `0.2.0` source candidate, with `evaluator_version=0.2.0` and unchanged report schema `0.1.0`; the Mooncakes `0.1.0` release and tag are unchanged. Add a bilingual static product site, CLI-generated bbox/mask/polygon demos, viewer deep links and browser checks. Candidate archive checks exercise mask APIs, the native CLI and batch segmentation independently of this checkout; exact registry checks accept a version parameter and still default to published `0.1.0`.
 
 - Adopt MoonBit 0.10.15 formatter output for `Int32` annotations and optional-argument declarations in the library, CLI and consumer adapters; update consumer array JSON assertions to `Json(value)`. CI reports the installed toolchain version.
