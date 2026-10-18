@@ -70,7 +70,9 @@ jobs:
           moon check --target all --deny-warn
           moon test --target all --deny-warn
       - name: Verify three exact registry packages without source workspace
-        run: python3 examples/consumer/registry_smoke.py
+        run: |
+          python3 examples/consumer/registry_smoke.py --moondeteval-version 0.1.0
+          python3 examples/consumer/registry_smoke.py --moondeteval-version 0.2.0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'

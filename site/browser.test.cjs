@@ -53,7 +53,7 @@ test('both languages persist and copy commands through the real clipboard',async
   assert.equal(await page.getByText('undefined',{exact:true}).count(),0);
   await page.locator('[data-copy="install-code"]').click();
   await page.waitForFunction(()=>document.getElementById('copy-status').textContent==='Copied to clipboard');
-  assert.equal(await page.evaluate(()=>navigator.clipboard.readText()),'moon add python123-ops/moondeteval@0.1.0');
+  assert.equal(await page.evaluate(()=>navigator.clipboard.readText()),'moon add python123-ops/moondeteval@0.2.0');
   await page.reload();await ready(page);assert.equal(await page.locator('html').getAttribute('lang'),'en');
   await page.locator('#language').focus();await page.keyboard.press('Enter');
   assert.equal(await page.locator('html').getAttribute('lang'),'zh-CN');await ctx.close();
