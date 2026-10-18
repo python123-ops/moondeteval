@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (source checkout)
+## 0.2.0 — 2026-10-18
 
 - Index evaluation inputs once by image/category and skip empty groups while retaining global score ranking, empty-image counts and diagnostic ordering. Add bounded per-category mask IoU caches with exact on-demand fallback, optional public API budgets and `--max-iou-cache-pairs` in native/batch evaluation. Zero disables caching; the budget is not a process-memory limit. Existing report/schema and published release behavior are unchanged.
 
