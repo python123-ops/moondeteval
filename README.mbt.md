@@ -83,7 +83,7 @@ moon run cli --target native -- examples/mask-ground-truth.json examples/mask-ba
 
 The checked-in 2×2 example uses masks with identical enclosing boxes and disjoint foregrounds. Its baseline AP is `0`, candidate AP is `1`, and candidate-minus-baseline image error count is `-2`. Add `--output PATH` to write a new report. All existing CLI limits and output/quality gates apply; `--iou-type` defaults to `bbox`, and `segm` rejects YOLO inputs. This is evaluation of supplied masks, with no inference or external polygon conversion dependency.
 
-The [mask AP differential script](examples/mask_ap_reference.py) verifies 44 synthetic cases (20 fixed boundary cases and 24 seeded cases, seed `20261012`) against `COCOeval(iouType="segm")` from `pycocotools==2.0.7`. It checks all 12 summary and per-class metrics, 69,690 exported PR samples, 7,746 diagnostic entries and per-image results, at absolute tolerance `1e-9`, plus real-process CLI failures and paired output. This establishes the covered RLE behavior, with polygon validation described below. These APIs are unreleased and are not in the Mooncakes `0.1.0` package.
+The [mask AP differential script](examples/mask_ap_reference.py) verifies 44 synthetic cases (20 fixed boundary cases and 24 seeded cases, seed `20261012`) against `COCOeval(iouType="segm")` from `pycocotools==2.0.7`. It checks all 12 summary and per-class metrics, 69,690 exported PR samples, 7,746 diagnostic entries and per-image results, at absolute tolerance `1e-9`, plus real-process CLI failures and paired output. This establishes the covered RLE behavior, with polygon validation described below. These APIs require `0.2.0` and are absent from `0.1.0`.
 
 ## COCO polygon input (source checkout)
 
