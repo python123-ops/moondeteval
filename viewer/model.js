@@ -242,10 +242,15 @@
     return "无效";
   }
 
+  function formatDelta(value) {
+    if (value === null || value === undefined) return "—";
+    return Number.isFinite(value) ? value.toFixed(4) : "无效";
+  }
+
   return {
     gateReport, gateFingerprint, metricGates: model => model.raw.metric_gates || null,
     iouType: (model) => sides(model)[0].report.iou_type || "bbox",
     METRICS, parseReport, sides, selectedSide, overallMetrics, classIds,
-    classMetrics, imageRows, curveOptions, curveData, filterDiagnostics, formatValue,
+    classMetrics, imageRows, curveOptions, curveData, filterDiagnostics, formatValue, formatDelta,
   };
 });

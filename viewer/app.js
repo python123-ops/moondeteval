@@ -76,7 +76,7 @@
     const compare = model.kind === "comparison";
     const headings = compare ? ["指标", "基线", "候选", "变化（候选 − 基线）"] : ["指标", "数值"];
     const values = (row) => compare
-      ? [row.name, api.formatValue(row.baseline), api.formatValue(row.candidate), api.formatValue(row.delta)]
+      ? [row.name, api.formatValue(row.baseline), api.formatValue(row.candidate), api.formatDelta(row.delta)]
       : [row.name, api.formatValue(row.value)];
     table("overall-table", headings, api.overallMetrics(model).map(values));
     const ids = api.classIds(model);
@@ -105,7 +105,7 @@
     const compare = state.model.kind === "comparison";
     const headings = compare ? ["指标", "基线", "候选", "变化（候选 − 基线）"] : ["指标", "数值"];
     const rows = api.classMetrics(state.model, $("class-select").value).map((row) => compare
-      ? [row.name, api.formatValue(row.baseline), api.formatValue(row.candidate), api.formatValue(row.delta)]
+      ? [row.name, api.formatValue(row.baseline), api.formatValue(row.candidate), api.formatDelta(row.delta)]
       : [row.name, api.formatValue(row.value)]);
     table("class-table", headings, rows);
   }

@@ -119,6 +119,8 @@ test('regression gates show native failure reasons, mixed batch outcomes and mob
   assert.match(await page.locator('#gate-meta').textContent(),/失败/);
   assert.match(await page.locator('#gate-table').textContent(),/下降量超限/);
   assert.match(await page.locator('#gate-table').textContent(),/0.7500/);
+  assert.equal(await page.locator('#overall-table tbody tr').nth(6).locator('td').nth(3).textContent(),'-1.0000');
+  assert.equal(await page.locator('#class-table tbody tr').first().locator('td').nth(3).textContent(),'-1.0000');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.locator('#batch-folder').setInputFiles(batches.gated);await batchReady(page);
   assert.equal(await page.locator('#gate-view').isVisible(),false);

@@ -2,6 +2,8 @@
 
 ## Unreleased (source checkout)
 
+- Preserve a valid comparison delta of `-1` in overall and category tables instead of labeling it as an undefined metric.
+
 - Add shared MoonBit minimum-metric and baseline-drop gates for all 12 AP/AR metrics, including signed category scopes, explicit undefined handling and complete per-rule results. Expose them through the candidate CLI and batch evaluator; quality failures retain complete reports and return `3`. Extend optional report/batch fields and the read-only viewer without changing schema `0.1.0`, batch format `2` or legacy no-rule output. The bbox website demo now demonstrates an intentional AP50 regression failure.
 
 - Add local batch-folder inspection to the report viewer: format-1 bbox and format-2 bbox/segm indexes, model summaries and switching, on-demand SHA-256 and report/index consistency checks, with missing-file and stale-load handling. Simplify the bilingual product site around installation, supported inputs and report examples.

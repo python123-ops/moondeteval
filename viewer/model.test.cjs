@@ -29,6 +29,8 @@ test('real single report preserves undefined metrics and optional-data absence',
   assert.equal(api.overallMetrics(model).length, 12);
   assert.equal(api.overallMetrics(model).find(x => x.name === 'ap50').value, 1);
   assert.equal(api.formatValue(-1), '未定义');
+  assert.equal(api.formatDelta(-1), '-1.0000');
+  assert.equal(api.formatDelta(null), '—');
   assert.equal(api.imageRows(model).length, 0);
   assert.equal(api.curveOptions(model, 'single').length, 0);
   assert.equal(api.filterDiagnostics(model, 'single', { status: '', threshold: '', imageId: '', categoryId: '' }, 1, 40).total, 0);
