@@ -4,5 +4,9 @@ reference_compare.py
 examples/
 viewer/
 site/
+__pycache__/
+**/__pycache__/
+*.pyc
+**/*.pyc
 **/_build/
 **/.mooncakes/

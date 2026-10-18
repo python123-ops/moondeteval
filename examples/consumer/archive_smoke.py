@@ -23,6 +23,7 @@ def verify(archive, destination, expected_version):
                 raise ValueError("Unsafe archive entry")
         names = set(zipped.namelist())
         assert not any(name.startswith(("site/", "viewer/", "examples/")) for name in names)
+        assert not any("__pycache__" in name.split("/") or name.endswith((".pyc", ".pyo")) for name in names)
         assert {"moon.mod", "mask_polygon.mbt", "mask_evaluation.mbt", "THIRD_PARTY_NOTICES.md"} <= names
         zipped.extractall(module)
     assert f'version = "{expected_version}"' in (module / "moon.mod").read_text(encoding="utf-8")
