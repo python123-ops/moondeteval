@@ -84,9 +84,17 @@ def command(root, *args):
     return run.stdout.strip()
 
 
-def check(root):
+def check(root, moondeteval_version="0.1.0"):
+    versions = dict(VERSIONS)
+    versions["python123-ops/moondeteval"] = moondeteval_version
     for name in SOURCES:
         shutil.copy2(HERE / name, root / name)
+    module = root / "moon.mod"
+    module.write_text(module.read_text(encoding="utf-8").replace(
+        "python123-ops/moondeteval@0.1.0",
+        "python123-ops/moondeteval@" + moondeteval_version), encoding="utf-8")
+    if moondeteval_version != "0.1.0":
+        shutil.copy2(HERE / "mask_consumer_test.mbt", root / "mask_consumer_test.mbt")
     app = root / "app"
     app.mkdir()
     (app / "moon.pkg").write_text(APP_PKG, encoding="utf-8")
@@ -94,7 +102,7 @@ def check(root):
     assert not (root / "moon.work").exists()
     tree = json.loads(command(root, "tree", "--json"))
     modules = {item["name"]: item for item in tree["modules"]}
-    for name, expected in VERSIONS.items():
+    for name, expected in versions.items():
         item = modules[name]
         if (item["version"], item["source"]["kind"], item["workspace_member"]) != (expected, "registry", False):
             raise RuntimeError(f"not an exact independent registry dependency: {item}")
@@ -105,30 +113,31 @@ def check(root):
     native = command(root, "run", "app", "--target", "native")
     if native != "AP50=1 images=2 detections=2":
         raise RuntimeError(f"unexpected native result: {native}")
-    result = {"module_sources": {name: modules[name] for name in VERSIONS},
+    result = {"module_sources": {name: modules[name] for name in versions},
               "test_output": tests, "native_output": native,
               "commands": ["moon tree --json", "moon fmt --check",
                            "moon check --target all --deny-warn",
                            "moon test --target all --deny-warn", "moon run app --target native"]}
     (root / "registry-result.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     print(native)
-    print("Registry: " + ", ".join(f"{name}@{version}" for name, version in VERSIONS.items()))
+    print("Registry: " + ", ".join(f"{name}@{version}" for name, version in versions.items()))
     print("Four backends passed.")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, help="save independent module and result outside the repository")
+    parser.add_argument("--moondeteval-version", default="0.1.0", help="exact published version to verify (default: 0.1.0)")
     args = parser.parse_args()
     if args.output_dir:
         root = args.output_dir.resolve()
         if root.exists():
             parser.error(f"output directory already exists: {root}")
         root.mkdir(parents=True, exist_ok=False)
-        check(root)
+        check(root, args.moondeteval_version)
     else:
         with tempfile.TemporaryDirectory(prefix="moondeteval-registry-") as directory:
-            check(Path(directory))
+            check(Path(directory), args.moondeteval_version)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,8 @@
 
 ## Unreleased (source checkout)
 
+- Prepare the `0.2.0` source candidate, with `evaluator_version=0.2.0` and unchanged report schema `0.1.0`; the Mooncakes `0.1.0` release and tag are unchanged. Add a bilingual static product site, CLI-generated bbox/mask/polygon demos, viewer deep links and browser checks. Candidate archive checks exercise mask APIs, the native CLI and batch segmentation independently of this checkout; exact registry checks accept a version parameter and still default to published `0.1.0`.
+
 - Adopt MoonBit 0.10.15 formatter output for `Int32` annotations and optional-argument declarations in the library, CLI and consumer adapters; update consumer array JSON assertions to `Json(value)`. CI reports the installed toolchain version.
 
 - Batch COCO mask evaluation with `--iou-type segm`, type-checked reports, format-2 indexes carrying task markers and replay flags, and preserved default bbox support for the published CLI. Seven batch checks pass; real YOLO11n-seg outputs on a 64-image COCO subset match the reference in three prediction configurations. Fix diagnostic PR reconstruction to use the reference recall grid rather than integer division; add a 7/10 recall boundary fixture and four-backend regression.

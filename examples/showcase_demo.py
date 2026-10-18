@@ -63,7 +63,7 @@ def main() -> None:
         (1, 0), (2, 0.5)
     ]
     assert all(len(item["precision"]) == 101 for item in curves)
-    print("MoonDetEval 0.1.0 | synthetic detector comparison")
+    print(f"MoonDetEval {report['baseline']['evaluator_version']} | synthetic detector comparison")
     print("AP50: baseline=1 candidate=0.25 delta=-0.75")
     print("IoU 0.50 FP: #0 wrong_class, #1 localization, #3 duplicate")
     print("IoU 0.50 FN: ground-truth #101")

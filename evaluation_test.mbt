@@ -35,7 +35,7 @@ test "report counts inputs and retained detections per image and category" {
   assert_eq(counts.ground_truths(), 1)
   assert_eq(counts.detections(), 107)
   assert_eq(counts.evaluated_detections(), 102)
-  assert_eq(report.evaluator_version(), "0.1.0")
+  assert_eq(report.evaluator_version(), "0.2.0")
   assert_true(report.to_json_string().contains("\"evaluated_detections\":102"))
 }
 

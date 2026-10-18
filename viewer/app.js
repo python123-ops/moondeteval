@@ -7,6 +7,7 @@
   const IMAGE_PAGE_SIZE = 50;
   const DIAG_PAGE_SIZE = 40;
   const MAX_FILE_BYTES = 128 * 1024 * 1024;
+  let loadSequence = 0;
 
   function cell(row, value, header = false) {
     const element = document.createElement(header ? "th" : "td");
@@ -213,33 +214,40 @@
     pager("diag", state.diagPage, result.pages, result.total);
   }
 
-  async function loadFile(file) {
+  async function loadReport(name, size, read) {
+    const sequence = ++loadSequence;
+    state.model = null;
     $("report-view").hidden = true;
     $("load-error").hidden = true;
-    if (!file) return;
-    if (file.size > MAX_FILE_BYTES) {
+    if (size > MAX_FILE_BYTES) {
+      $("load-status").textContent = "加载失败";
       $("load-error").textContent = "文件超过 128 MiB 查看上限。";
       $("load-error").hidden = false;
       return;
     }
-    $("load-status").textContent = `正在读取 ${file.name}…`;
+    $("load-status").textContent = `正在读取 ${name}…`;
     await new Promise((resolve) => requestAnimationFrame(resolve));
     const start = performance.now();
     try {
-      state.model = api.parseReport(await file.text());
+      const text = await read();
+      if (sequence !== loadSequence) return;
+      const byteSize = new Blob([text]).size;
+      if (byteSize > MAX_FILE_BYTES) throw new Error("文件超过 128 MiB 查看上限。");
+      state.model = api.parseReport(text);
       state.imagePage = 1;
       state.diagPage = 1;
       $("diag-status").value = "";
       $("diag-image").value = "";
       $("diag-category").value = "";
-      renderOverview(file.name);
+      renderOverview(name);
       renderMetrics();
       renderImages();
       renderCurveOptions();
       renderDiagnosticOptions();
       $("report-view").hidden = false;
-      $("load-status").textContent = `已加载 ${file.name}（${(file.size / 1048576).toFixed(1)} MiB，解析及首屏渲染 ${(performance.now() - start).toFixed(0)} ms）`;
+      $("load-status").textContent = `已加载 ${name}（${(byteSize / 1048576).toFixed(1)} MiB，解析及首屏渲染 ${(performance.now() - start).toFixed(0)} ms）`;
     } catch (error) {
+      if (sequence !== loadSequence) return;
       state.model = null;
       $("report-view").hidden = true;
       $("load-status").textContent = "加载失败";
@@ -248,7 +256,23 @@
     }
   }
 
-  $("report-file").addEventListener("change", (event) => loadFile(event.target.files[0]));
+  async function loadDemo(id) {
+    await loadReport(`演示：${id}`, 0, async () => {
+      const demo = globalThis.MoonDetEvalDemos.get(id);
+      if (location.protocol === "file:") throw new Error("在线示例需要通过 HTTP 打开产品网站；本地 JSON 文件仍可直接选择。");
+      const response = await fetch(new URL(`../demos/${demo.file}`, location.href));
+      if (!response.ok) throw new Error("示例暂时不可用，请重试或选择本地报告。");
+      return response.text();
+    });
+  }
+
+  $("report-file").addEventListener("change", (event) => {
+    const file = event.target.files[0];
+    if (file) loadReport(file.name, file.size, () => file.text());
+  });
+  for (const button of document.querySelectorAll("[data-demo]")) button.addEventListener("click", () => loadDemo(button.dataset.demo));
+  const initialDemo = new URLSearchParams(location.search).get("demo");
+  if (initialDemo !== null) loadDemo(initialDemo);
   $("class-select").addEventListener("change", renderClass);
   $("image-prev").addEventListener("click", () => { state.imagePage -= 1; renderImages(); });
   $("image-next").addEventListener("click", () => { state.imagePage += 1; renderImages(); });

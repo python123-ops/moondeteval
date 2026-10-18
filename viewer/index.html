@@ -6,6 +6,7 @@
   <title>MoonDetEval 报告查看器</title>
   <link rel="stylesheet" href="style.css">
   <script defer src="model.js"></script>
+  <script defer src="demos.js"></script>
   <script defer src="app.js"></script>
 </head>
 <body>
@@ -13,7 +14,13 @@
     <header class="hero">
       <div class="eyebrow">MOONDETEVAL · 本地查看器</div>
       <h1>读懂一次检测评测</h1>
-      <p>选择 MoonDetEval 0.1.0 的 JSON 报告。文件只在本机浏览器中读取，不上传，也不重新计算指标。</p>
+      <p>选择 MoonDetEval schema 0.1.0 的 bbox 或 mask JSON 报告。文件只在本机浏览器中读取，不上传，也不重新计算指标。</p>
+      <p><a href="../">MoonDetEval 产品网站 / Product home</a></p>
+      <div class="controls" aria-label="示例报告">
+        <button type="button" data-demo="bbox">bbox 回归示例</button>
+        <button type="button" data-demo="mask">mask 前景示例</button>
+        <button type="button" data-demo="polygon">多边形与 RLE 示例</button>
+      </div>
       <label class="file-picker" for="report-file">选择 JSON 报告</label>
       <input id="report-file" type="file" accept=".json,application/json">
       <p id="load-status" class="subtle" role="status" aria-live="polite">尚未选择文件</p>

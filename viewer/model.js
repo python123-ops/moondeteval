@@ -34,7 +34,7 @@
 
   function evaluation(value, name) {
     if (!object(value) || value.schema_version !== "0.1.0") {
-      throw new Error(`${name} 不是 MoonDetEval 0.1.0 报告`);
+      throw new Error(`${name} 不是 MoonDetEval schema 0.1.0 报告`);
     }
     if (!object(value.summary) || !object(value.config) || !object(value.counts)) {
       throw new Error(`${name} 缺少 summary、config 或 counts`);

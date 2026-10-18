@@ -3,10 +3,11 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   moonbit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Install MoonBit
@@ -44,7 +45,7 @@ jobs:
                       'mask_polygon.mbt', 'THIRD_PARTY_NOTICES.md',
                       'cli/main.mbt', 'cli/evaluation_input.mbt'}
           assert required <= names, required - names
-          assert not any(name.startswith(('examples/', 'viewer/')) for name in names)
+          assert not any(name.startswith(('examples/', 'viewer/', 'site/')) for name in names)
           assert not any(name in {'AGENTS.md', 'reference_compare.py'} for name in names)
           PY
       - name: Run paired detector demo and quality gates
@@ -76,3 +77,38 @@ jobs:
         run: python examples/mask_ap_reference.py
       - name: Compare COCO polygon rasterization and mask AP
         run: python examples/polygon_reference.py
+      - name: Verify candidate archive independently
+        run: python examples/consumer/archive_smoke.py --archive _build/publish/python123-ops-moondeteval-0.2.0.zip
+      - name: Generate static product site and CLI reports
+        run: python site/build.py
+      - name: Install browser test tools
+        run: |
+          npm install --prefix _build/browser --no-save --package-lock=false playwright@1.62.1
+          node _build/browser/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Verify bilingual site and report interactions
+        env:
+          NODE_PATH: ${{ github.workspace }}/_build/browser/node_modules
+        run: node --test site/browser.test.cjs
+      - name: Upload product site
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _build/site
+
+  pages:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: moonbit
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Deploy product site
+        id: deployment
+        uses: actions/deploy-pages@v4

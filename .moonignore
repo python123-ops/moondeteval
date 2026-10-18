@@ -3,5 +3,6 @@ AGENTS.md
 reference_compare.py
 examples/
 viewer/
+site/
 **/_build/
 **/.mooncakes/
