@@ -113,6 +113,28 @@ async function batchReady(page,name='baseline'){
   assert.equal(await page.locator('#load-error').isVisible(),false,await page.locator('#load-error').textContent());
 }
 
+test('regression gates show native failure reasons, mixed batch outcomes and mobile details',async()=>{
+  const [ctx,page]=await context({viewport:{width:390,height:844}});
+  await page.goto(base+'viewer/?demo=bbox');await page.locator('#gate-view').waitFor({state:'visible'});
+  assert.match(await page.locator('#gate-meta').textContent(),/失败/);
+  assert.match(await page.locator('#gate-table').textContent(),/下降量超限/);
+  assert.match(await page.locator('#gate-table').textContent(),/0.7500/);
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await page.locator('#batch-folder').setInputFiles(batches.gated);await batchReady(page);
+  assert.equal(await page.locator('#gate-view').isVisible(),false);
+  assert.deepEqual(await page.locator('#batch-table tbody tr td:last-child').allTextContents(),['基线参照','失败','通过']);
+  await page.locator('#batch-model').selectOption('candidate');await batchReady(page,'candidate');
+  assert.match(await page.locator('#gate-table').textContent(),/下降量超限/);
+  await page.locator('#batch-model').selectOption('unchanged');await batchReady(page,'unchanged');
+  assert.match(await page.locator('#gate-meta').textContent(),/^通过/);
+  const report=JSON.parse(fs.readFileSync(path.join(batches.gated,'candidate.report.json'),'utf8'));
+  report.metric_gates.checks[0].candidate=.9;
+  await page.locator('#report-file').setInputFiles({name:'changed.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(report))});
+  await page.locator('#load-error').waitFor({state:'visible'});
+  assert.match(await page.locator('#load-error').textContent(),/门禁数值/);
+  await ctx.close();
+});
+
 test('real bbox, segm and legacy batch folders open locally and switch reports without uploading',async()=>{
   const [ctx,page]=await context();await page.goto(base+'viewer/');const requests=[];page.on('request',request=>requests.push(request.url()));
   for(const kind of ['bbox','segm','legacy']){

@@ -27,11 +27,18 @@ function createFixtures(){
       execFileSync(process.env.PYTHON || (process.platform==='win32'?'python':'python3'),args,{cwd:root,stdio:'pipe'});
     }
     const legacy=path.join(directory,'legacy');fs.mkdirSync(legacy);
+    const gated=path.join(directory,'gated');
+    const gatedArgs=[path.join(examples,'batch_eval.py'),'--cli',executable,'--ground-truth',path.join(examples,'compare-ground-truth.json'),
+      '--baseline','baseline','--model','baseline',path.join(examples,'compare-baseline.json'),
+      '--model','candidate',path.join(examples,'compare-candidate.json'),'--model','unchanged',path.join(examples,'compare-baseline.json'),
+      '--max-metric-drop','ap50=0.1','--min-metric','ar100=0.5','--output-dir',gated];
+    try{execFileSync(process.env.PYTHON || (process.platform==='win32'?'python':'python3'),gatedArgs,{cwd:root,stdio:'pipe'});throw new Error('Expected quality failure');}
+    catch(error){if(error.status!==3)throw error;}
     for(const name of fs.readdirSync(path.join(directory,'bbox')))fs.copyFileSync(path.join(directory,'bbox',name),path.join(legacy,name));
     const index=JSON.parse(fs.readFileSync(path.join(legacy,'index.json'),'utf8'));
     index.format_version='1';delete index.iou_type;index.models.forEach(model=>delete model.iou_type);
     fs.writeFileSync(path.join(legacy,'index.json'),JSON.stringify(index));
-    return {directory,bbox:path.join(directory,'bbox'),segm:path.join(directory,'segm'),legacy,
+    return {directory,bbox:path.join(directory,'bbox'),segm:path.join(directory,'segm'),legacy,gated,
       cleanup};
   }catch(error){cleanup();throw error;}
 }

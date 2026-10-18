@@ -2,6 +2,8 @@
 
 ## Unreleased (source checkout)
 
+- Add shared MoonBit minimum-metric and baseline-drop gates for all 12 AP/AR metrics, including signed category scopes, explicit undefined handling and complete per-rule results. Expose them through the candidate CLI and batch evaluator; quality failures retain complete reports and return `3`. Extend optional report/batch fields and the read-only viewer without changing schema `0.1.0`, batch format `2` or legacy no-rule output. The bbox website demo now demonstrates an intentional AP50 regression failure.
+
 - Add local batch-folder inspection to the report viewer: format-1 bbox and format-2 bbox/segm indexes, model summaries and switching, on-demand SHA-256 and report/index consistency checks, with missing-file and stale-load handling. Simplify the bilingual product site around installation, supported inputs and report examples.
 
 - Prepare the `0.2.0` source candidate, with `evaluator_version=0.2.0` and unchanged report schema `0.1.0`; the Mooncakes `0.1.0` release and tag are unchanged. Add a bilingual static product site, CLI-generated bbox/mask/polygon demos, viewer deep links and browser checks. Candidate archive checks exercise mask APIs, the native CLI and batch segmentation independently of this checkout; exact registry checks accept a version parameter and still default to published `0.1.0`.

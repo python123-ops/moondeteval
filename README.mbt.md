@@ -164,7 +164,39 @@ New indexes use **`format_version="2"`** and record `iou_type` at the top level 
 
 Real-model validation also used fixed Ultralytics `8.3.0` YOLO11n-seg weights on 64 cached COCO val2017 images, with CPU inference at `imgsz=640` and `320`, `conf=0.001`, NMS IoU `0.7`, `max_det=100`, and `retina_masks=True`. Masks came from original-resolution binary `masks.data`, encoded as RLE; category IDs were mapped by COCO class names. A third input filtered the 640 predictions at confidence `0.25`. All three reports matched `COCOeval(segm)` summary/per-class metrics, 242,400 PR samples, 111,844 diagnostic entries and image counts at tolerance `1e-9`; batch deltas matched direct comparison, and GT polygon-to-RLE conversion/removing supplied detection box area preserved metrics. Reference inputs remove detection `bbox`/`area` to select COCO's mask-area branch. These are subset validation results, not official full-validation accuracy or runtime ML dependencies.
 
-The index and all reports appear only when the full batch succeeds. Existing output directories are refused. This standard-library Python tool is a development companion to the native CLI, not part of the Mooncakes package.
+The index and all reports appear only when evaluation finishes without input or resource errors. Quality-gate failures retain the complete bundle and return exit `3`. Existing output directories are refused. This standard-library Python tool is a development companion to the native CLI, not part of the Mooncakes package.
+
+## Metric regression gates (0.2.0 candidate)
+
+Use `GateRule::minimum("ap", 0.30)` or `GateRule::max_drop("ap", 0.05)` to construct rules; optional `category_id=85` scopes either rule to a category. `GatePolicy::new(rules, undefined_policy="fail")` accepts 1–1,000 unique rules. `EvaluationReport::check_gates(policy)` checks minimum values; `ComparisonReport::check_gates(policy)` checks the candidate, using its paired baseline for drop rules. Both return a `GateReport`; they do not modify the evaluation report. `GateReport::status()`, `reason()`, `checks()` and `to_json_string()` expose the result. Each `GateCheck` exposes kind, metric, category ID, threshold, candidate, baseline, drop, status and reason through methods of the same names.
+
+All 12 existing metric names are supported: `ap`, `ap50`, `ap75`, `ap_small`, `ap_medium`, `ap_large`, `ar1`, `ar10`, `ar100`, `ar_small`, `ar_medium`, `ar_large`. Thresholds are finite fractions in `[0,1]`: `0.01` means one percentage point. Minimum checks use `candidate + 1e-12 >= threshold`; drop checks use `baseline - candidate <= threshold + 1e-12`. Negative drop means improvement. Duplicate kind/metric/scope rules, unknown metrics or categories, oversized policies and single-model drop rules raise `InvalidConfig`. Signed, non-contiguous category IDs are supported. Undefined metrics fail by default; `undefined_policy="skip"` records a skipped rule, but an entirely skipped policy still fails.
+
+The CLI accepts these repeatable options:
+
+```text
+--min-metric METRIC=VALUE
+--max-metric-drop METRIC=VALUE
+--min-class-metric CATEGORY:METRIC=VALUE
+--max-class-drop CATEGORY:METRIC=VALUE
+--undefined-gate fail|skip
+```
+
+```sh
+moon run cli --target native -- examples/compare-ground-truth.json examples/compare-baseline.json --compare examples/compare-candidate.json --max-metric-drop ap50=0.1 --min-metric ar100=0.5 --output ../regression.report.json
+```
+
+This intentionally returns `3`: AP50 drops from `1` to `0.25`, exceeding `0.1`. The full report is saved before the quality failure. Input/configuration errors return `2`. Drop options require `--compare`; `--undefined-gate` requires at least one rule. Legacy `--min-ap50` keeps its behavior when used alone and cannot be combined with these new rules. `--fail-on-warning` remains an independent gate and may fail even when all metric rules pass.
+
+New rules add an optional root `metric_gates` object to schema `0.1.0`; no-rule JSON stays unchanged. Gate format `1` records `status`, `undefined_policy`, `reason` and ordered `checks`. Each check records `kind`, `metric`, explicit nullable `category_id`, `threshold`, nullable `candidate`/`baseline`/`drop`, `status` (`passed`, `failed`, `skipped`) and `reason` (`ok`, `below_minimum`, `drop_exceeded`, `undefined_candidate`, `undefined_baseline`). Whole-policy reasons are `ok`, `rules_failed` or `all_skipped`. Unavailable values are `null`, rather than a passing zero.
+
+The batch tool accepts the same new options. The named baseline is only a reference; every other model is checked with the same policy. Minimum-only batches use single evaluation. If any drop rule is present, each candidate uses the native comparison CLI, which evaluates the baseline again; expect extra CPU time and paired-report memory/output overhead under the existing resource limits. The saved candidate report carries the comparison's `metric_gates`. `report_source="comparison.candidate"` documents that projection: its replay command produces a full paired report; take `candidate` and attach root `metric_gates` to reproduce the stored single report.
+
+```sh
+python examples/batch_eval.py --ground-truth examples/compare-ground-truth.json --model baseline examples/compare-baseline.json --model candidate examples/compare-candidate.json --model unchanged examples/compare-baseline.json --baseline baseline --max-metric-drop ap50=0.1 --output-dir ../gated-batch
+```
+
+The tool completes every model, saves all reports plus per-model and aggregate `metric_gates` in format `2`, then returns `3` if any candidate fails. Input/configuration/resource errors abort without publishing a partial directory. The viewer shows the native rule outcomes and failure reasons, verifies report/index gate consistency, and accepts old reports and format `1` indexes. It does not decide thresholds in JavaScript. These gates require the candidate source, not the published `0.1.0` package. Run `python -m unittest examples/gate_test.py -v` for CLI and batch failure-path checks.
 
 From a checkout of this repository, run:
 

@@ -43,7 +43,11 @@ def build(output):
         inputs = ["examples/" + value for value in (gt, baseline, candidate)]
         command = ["moon", "run", "cli", "--target", "native", "--", inputs[0], inputs[1],
                    "--iou-type", geometry, "--compare", inputs[2], "--diagnostics", "--image-ranking", "--pr-curves"]
-        result = subprocess.run(command, cwd=ROOT, text=True, encoding="utf-8", capture_output=True, check=True)
+        expected_exit = 3 if name == "bbox" else 0
+        if name == "bbox":
+            command += ["--max-metric-drop", "ap50=0.1"]
+        result = subprocess.run(command, cwd=ROOT, text=True, encoding="utf-8", capture_output=True)
+        assert result.returncode == expected_exit, (name, result.returncode, result.stderr)
         report = json.loads(result.stdout)
         assert report["schema_version"] == "0.1.0"
         assert report["baseline"]["evaluator_version"] == report["candidate"]["evaluator_version"] == "0.2.0"
@@ -51,12 +55,16 @@ def build(output):
         assert abs(left - expected_left) < 1e-9 and abs(right - expected_right) < 1e-9, (name, left, right)
         if name == "polygon":
             assert all(row["delta"] in (None, 0) for row in report["metrics"])
+        if name == "bbox":
+            gates = report["metric_gates"]
+            assert gates["status"] == "failed" and gates["checks"][0]["reason"] == "drop_exceeded"
+            assert gates["checks"][0]["drop"] == 0.75
         report_path = output / "demos" / (name + ".json")
         report_path.parent.mkdir(exist_ok=True)
         report_path.write_text(json.dumps(report, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
         manifest["demos"][name] = {"report": name + ".json", "report_sha256": sha(report_path),
                                    "iou_type": geometry, "metric": metric,
-                                   "baseline": left, "candidate": right,
+                                   "baseline": left, "candidate": right, "expected_exit_code": expected_exit,
                                    "inputs": {path: sha(ROOT / path) for path in inputs}, "command": command}
     (output / "demos" / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     expected = set(ASSETS) | {".nojekyll", "demos/manifest.json"} | {"demos/" + name + ".json" for name in DEMOS}

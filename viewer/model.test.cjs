@@ -1,11 +1,23 @@
 const assert = require('node:assert/strict');
-const { execFileSync } = require('node:child_process');
+const { execFileSync, spawnSync } = require('node:child_process');
 const { test } = require('node:test');
 const path = require('node:path');
 const api = require('./model.js');
 
 const root = path.resolve(__dirname, '..');
 const args = ['run', 'cli', '--target', 'native', '--'];
+test('native regression gates bind to report values without browser threshold decisions',()=>{
+  const result=spawnSync('moon',[...args,'examples/compare-ground-truth.json','examples/compare-baseline.json',
+    '--compare','examples/compare-candidate.json','--max-metric-drop','ap50=0.1'],{cwd:root,encoding:'utf8'});
+  assert.equal(result.status,3);
+  const model=api.parseReport(result.stdout);
+  assert.equal(api.metricGates(model).checks[0].drop,.75);
+  for(const change of [v=>v.metric_gates.checks[0].candidate=.5,v=>v.metric_gates.checks[0].drop=.5,
+    v=>v.metric_gates.checks[0].category_id=999,v=>v.metric_gates.status='passed',
+    v=>v.metric_gates.checks.push(v.metric_gates.checks[0])]){
+    const value=JSON.parse(result.stdout);change(value);assert.throws(()=>api.parseReport(JSON.stringify(value)),/门禁/);
+  }
+});
 function report(extra = []) {
   return execFileSync('moon', [...args, 'examples/compare-ground-truth.json',
     'examples/compare-baseline.json', ...extra], { cwd: root, encoding: 'utf8' });

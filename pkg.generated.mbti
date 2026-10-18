@@ -123,6 +123,7 @@ pub struct ComparisonReport {
 } derive(ToJson)
 pub fn ComparisonReport::baseline(Self) -> EvaluationReport
 pub fn ComparisonReport::candidate(Self) -> EvaluationReport
+pub fn ComparisonReport::check_gates(Self, GatePolicy) -> GateReport raise EvalError
 pub fn ComparisonReport::classes(Self) -> Array[ClassComparison]
 pub fn ComparisonReport::image_changes(Self) -> Array[ImageChange]
 pub fn ComparisonReport::metrics(Self) -> Array[MetricChange]
@@ -187,6 +188,7 @@ pub struct EvaluationReport {
   pr_curves : Array[PrecisionRecallCurve]
   quality_warnings : Array[QualityWarning]
 }
+pub fn EvaluationReport::check_gates(Self, GatePolicy) -> GateReport raise EvalError
 pub fn EvaluationReport::classes(Self) -> Array[ClassMetrics]
 pub fn EvaluationReport::config(Self) -> EvalConfig
 pub fn EvaluationReport::counts(Self) -> InputCounts
@@ -201,6 +203,65 @@ pub fn EvaluationReport::summary(Self) -> Metrics
 pub fn EvaluationReport::to_json(Self) -> Json
 pub fn EvaluationReport::to_json_string(Self) -> String
 pub impl ToJson for EvaluationReport
+
+pub struct GateCheck {
+  kind : String
+  metric : String
+  category_id : Int?
+  threshold : Double
+  baseline : Double?
+  candidate : Double?
+  drop : Double?
+  status : String
+  reason : String
+}
+pub fn GateCheck::baseline(Self) -> Double?
+pub fn GateCheck::candidate(Self) -> Double?
+pub fn GateCheck::category_id(Self) -> Int?
+pub fn GateCheck::drop(Self) -> Double?
+pub fn GateCheck::kind(Self) -> String
+pub fn GateCheck::metric(Self) -> String
+pub fn GateCheck::reason(Self) -> String
+pub fn GateCheck::status(Self) -> String
+pub fn GateCheck::threshold(Self) -> Double
+pub fn GateCheck::to_json(Self) -> Json
+pub impl ToJson for GateCheck
+
+pub struct GatePolicy {
+  rules : Array[GateRule]
+  undefined_policy : String
+}
+pub fn GatePolicy::new(Array[GateRule], undefined_policy? : String) -> Self raise EvalError
+pub fn GatePolicy::rules(Self) -> Array[GateRule]
+pub fn GatePolicy::undefined_policy(Self) -> String
+
+pub struct GateReport {
+  format_version : String
+  status : String
+  undefined_policy : String
+  reason : String
+  checks : Array[GateCheck]
+} derive(ToJson)
+pub fn GateReport::checks(Self) -> Array[GateCheck]
+pub fn GateReport::reason(Self) -> String
+pub fn GateReport::status(Self) -> String
+pub fn GateReport::to_json(Self) -> Json
+pub fn GateReport::to_json_string(Self) -> String
+pub fn GateReport::undefined_policy(Self) -> String
+
+pub struct GateRule {
+  kind : String
+  metric : String
+  threshold : Double
+  category_id : Int?
+} derive(ToJson)
+pub fn GateRule::category_id(Self) -> Int?
+pub fn GateRule::kind(Self) -> String
+pub fn GateRule::max_drop(String, Double, category_id? : Int) -> Self raise EvalError
+pub fn GateRule::metric(Self) -> String
+pub fn GateRule::minimum(String, Double, category_id? : Int) -> Self raise EvalError
+pub fn GateRule::threshold(Self) -> Double
+pub fn GateRule::to_json(Self) -> Json
 
 pub struct GroundTruth {
   id : Int64

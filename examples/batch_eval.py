@@ -21,6 +21,7 @@ METRICS = (
 )
 NAME = re.compile(r"[A-Za-z0-9_-]+\Z")
 WINDOWS_RESERVED = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}
+GATE_OPTIONS = ("--min-metric", "--max-metric-drop", "--min-class-metric", "--max-class-drop")
 
 
 class BatchError(Exception):
@@ -52,11 +53,12 @@ def snapshot(source, target):
     return copied
 
 
-def checked_report(path, expected_iou_type="bbox"):
-    try:
-        report = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        raise BatchError(f"invalid CLI report {path.name}: {error}") from error
+def checked_report(path, expected_iou_type="bbox", report=None):
+    if report is None:
+        try:
+            report = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            raise BatchError(f"invalid CLI report {path.name}: {error}") from error
     if not isinstance(report, dict) or report.get("schema_version") != "0.1.0":
         raise BatchError(f"unsupported CLI report schema: {path.name}")
     if not isinstance(report.get("config"), dict) or not isinstance(report.get("counts"), dict):
@@ -80,6 +82,28 @@ def checked_report(path, expected_iou_type="bbox"):
     return report
 
 
+def checked_gates(value, exit_code):
+    if not isinstance(value, dict) or value.get("format_version") != "1" or value.get("status") not in ("passed", "failed"):
+        raise BatchError("CLI did not provide a supported metric_gates result; use the current source CLI")
+    if value.get("undefined_policy") not in ("fail", "skip") or not isinstance(value.get("checks"), list) or not 1 <= len(value["checks"]) <= 1000:
+        raise BatchError("invalid metric gate policy/result")
+    if value["status"] != ("failed" if exit_code == 3 else "passed"):
+        raise BatchError("CLI exit code disagrees with metric gates")
+    for check in value["checks"]:
+        if not isinstance(check, dict) or check.get("kind") not in ("minimum", "max_drop") or check.get("metric") not in METRICS or check.get("status") not in ("passed", "failed", "skipped"):
+            raise BatchError("invalid metric gate check")
+    return value
+
+
+class GateArgument(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        rules = getattr(namespace, "gate_options", None)
+        if rules is None:
+            rules = []
+        rules.append((option_string, values))
+        namespace.gate_options = rules
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ground-truth", required=True, type=input_path)
@@ -93,10 +117,31 @@ def parse_args(argv=None):
         parser.add_argument("--" + flag, action="store_true")
     for flag in ("max-input-bytes", "max-total-input-bytes", "max-records", "max-diagnostics", "max-report-bytes"):
         parser.add_argument("--" + flag, type=int)
-    return parser.parse_args(argv)
+    for flag in GATE_OPTIONS:
+        parser.add_argument(flag, action=GateArgument, dest="gate_options")
+    parser.add_argument("--undefined-gate", choices=("fail", "skip"))
+    # argparse otherwise treats a signed CATEGORY:METRIC=VALUE as an option.
+    original = list(sys.argv[1:] if argv is None else argv)
+    normalized = []
+    position = 0
+    while position < len(original):
+        if original[position] in GATE_OPTIONS and position + 1 < len(original) and original[position + 1].startswith("-") and not original[position + 1].startswith("--"):
+            normalized.append(original[position] + "=" + original[position + 1])
+            position += 2
+        else:
+            normalized.append(original[position])
+            position += 1
+    return parser.parse_args(normalized)
 
 
 def run_batch(args):
+    gate_options = args.gate_options or []
+    if len(gate_options) > 1000 or (args.undefined_gate is not None and not gate_options):
+        raise BatchError("metric gates require 1 to 1000 rules; --undefined-gate requires rules")
+    gate_flags = [item for pair in gate_options for item in pair]
+    if args.undefined_gate is not None:
+        gate_flags += ["--undefined-gate", args.undefined_gate]
+    has_drop = any(flag in ("--max-metric-drop", "--max-class-drop") for flag, _ in gate_options)
     if len(args.model) < 2:
         raise BatchError("at least two --model NAME PATH entries are required")
     names = [name for name, _ in args.model]
@@ -145,14 +190,39 @@ def run_batch(args):
         common_config = None
         common_truth_counts = None
         evaluator_version = None
-        for name, source, frozen_source, source_hash in model_inputs:
+        common_gates = None
+        baseline_input = next(item for item in model_inputs if item[0] == args.baseline)
+        ordered_inputs = sorted(model_inputs, key=lambda item: item[0] != args.baseline) if gate_options else model_inputs
+        for name, source, frozen_source, source_hash in ordered_inputs:
             report_name = f"{name}.report.json"
             report_path = stage / report_name
-            command = prefix + [str(frozen / "ground-truth.json"), str(frozen_source)] + flags + ["--output", str(report_path)]
+            gated = bool(gate_options) and name != args.baseline
+            paired = gated and has_drop
+            cli_output = temporary / (name + ".paired.json") if paired else report_path
+            input_args = [str(frozen / "ground-truth.json"), str(baseline_input[2] if paired else frozen_source)]
+            compare_args = ["--compare", str(frozen_source)] if paired else []
+            command = prefix + input_args + flags + compare_args + (gate_flags if gated else []) + ["--output", str(cli_output)]
             result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace")
-            if result.returncode != 0:
+            if result.returncode not in ((0, 3) if gated else (0,)):
                 raise BatchError(f"{name}: MoonDetEval CLI exited {result.returncode}: {result.stderr.strip()}")
-            report = checked_report(report_path, args.iou_type)
+            if paired:
+                try:
+                    comparison = json.loads(cli_output.read_text(encoding="utf-8"))
+                except (OSError, UnicodeError, json.JSONDecodeError) as error:
+                    raise BatchError(f"invalid comparison for {name}: {error}") from error
+                if not isinstance(comparison, dict) or comparison.get("schema_version") != "0.1.0":
+                    raise BatchError("invalid comparison schema")
+                before = checked_report(cli_output, args.iou_type, comparison.get("baseline", {}))
+                expected_base = next(entry for entry in entries if entry["name"] == args.baseline)
+                if before["summary"] != expected_base["summary"] or before["counts"] != expected_base["counts"] or before["config"] != common_config or before.get("evaluator_version") != evaluator_version:
+                    raise BatchError(f"{name}: comparison baseline differs from the frozen baseline")
+                report = checked_report(cli_output, args.iou_type, comparison.get("candidate", {}))
+                report["metric_gates"] = checked_gates(comparison.get("metric_gates"), result.returncode)
+                report_path.write_text(json.dumps(report, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
+            else:
+                report = checked_report(report_path, args.iou_type)
+                if gated:
+                    checked_gates(report.get("metric_gates"), result.returncode)
             config = report["config"]
             truth_counts = {key: report["counts"].get(key) for key in ("images", "categories", "ground_truths")}
             version = report.get("evaluator_version")
@@ -160,7 +230,7 @@ def run_batch(args):
                 common_config, common_truth_counts, evaluator_version = config, truth_counts, version
             elif config != common_config or truth_counts != common_truth_counts or version != evaluator_version:
                 raise BatchError(f"{name}: report configuration, dataset counts or evaluator version differs")
-            entries.append({
+            entry = {
                 "name": name,
                 "iou_type": args.iou_type,
                 "prediction_path": str(source),
@@ -169,8 +239,21 @@ def run_batch(args):
                 "report_sha256": digest(report_path),
                 "counts": report["counts"],
                 "summary": {metric: report["summary"][metric] for metric in METRICS},
-                "replay_command": prefix + [str(args.ground_truth), str(source)] + flags,
-            })
+                "replay_command": prefix + [str(args.ground_truth), str(baseline_input[1] if paired else source)] + flags + (["--compare", str(source)] if paired else []) + (gate_flags if gated else []),
+            }
+            if gated:
+                signature = {"undefined_policy": report["metric_gates"]["undefined_policy"],
+                             "rules": [{key: row.get(key) for key in ("kind", "metric", "category_id", "threshold")} for row in report["metric_gates"]["checks"]]}
+                if common_gates is None:
+                    common_gates = signature
+                elif signature != common_gates:
+                    raise BatchError(f"{name}: metric gate policy differs across models")
+                entry["metric_gates"] = report["metric_gates"]
+                entry["report_source"] = "comparison.candidate" if paired else "single"
+            entries.append(entry)
+
+        by_name = {entry["name"]: entry for entry in entries}
+        entries = [by_name[name] for name in names]
 
         baseline = next(item for item in entries if item["name"] == args.baseline)
         for item in entries:
@@ -197,6 +280,15 @@ def run_batch(args):
             "baseline": args.baseline,
             "models": entries,
         }
+        if gate_options:
+            checked_models = [entry for entry in entries if entry["name"] != args.baseline]
+            failed = [entry["name"] for entry in checked_models if entry["metric_gates"]["status"] == "failed"]
+            index["metric_gates"] = {
+                "format_version": "1", "status": "failed" if failed else "passed",
+                "checked_models": len(checked_models), "failed_models": failed,
+                "undefined_policy": checked_models[0]["metric_gates"]["undefined_policy"],
+                "rules": [{key: row[key] for key in ("kind", "metric", "category_id", "threshold")} for row in checked_models[0]["metric_gates"]["checks"]],
+            }
         (stage / "index.json").write_text(json.dumps(index, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         if output.exists():
             raise BatchError(f"output directory appeared during evaluation: {output}")
@@ -211,6 +303,10 @@ def main(argv=None):
         print(f"batch evaluation: {error}", file=sys.stderr)
         return 2
     print(result / "index.json")
+    index = json.loads((result / "index.json").read_text(encoding="utf-8"))
+    if index.get("metric_gates", {}).get("status") == "failed":
+        print("metric gates failed: " + ", ".join(index["metric_gates"]["failed_models"]), file=sys.stderr)
+        return 3
     return 0
 
 

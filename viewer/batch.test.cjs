@@ -40,7 +40,7 @@ test('mixed tasks, malformed config, counts and inconsistent deltas fail before 
   }
 });
 test('every real report passes byte hash and semantic consistency checks',async()=>{
-  for(const kind of ['bbox','segm','legacy']){
+  for(const kind of ['bbox','segm','legacy','gated']){
     const batch=api.parseIndex(text(kind));
     for(const entry of batch.models){
       const bytes=fs.readFileSync(path.join(fixtures[kind],entry.file));
@@ -48,6 +48,28 @@ test('every real report passes byte hash and semantic consistency checks',async(
       assert.equal(model.kind,'single');assert.equal(model.raw.summary.ap,entry.summary.ap);
     }
   }
+});
+
+test('native batch gates preserve mixed statuses and reject inconsistent metadata',async()=>{
+  const batch=api.parseIndex(text('gated'));
+  assert.equal(batch.gates.status,'failed');
+  assert.deepEqual(batch.models.map(model=>model.gates?.status),[undefined,'failed','passed']);
+  for(const change of [v=>v.metric_gates.status='passed',v=>v.metric_gates.failed_models=[],
+    v=>v.models[2].metric_gates.checks[0].threshold=.2,v=>delete v.metric_gates]){
+    const value=raw('gated');change(value);assert.throws(()=>api.parseIndex(JSON.stringify(value)),/门禁/);
+  }
+  const entry=batch.models[1];
+  const report=JSON.parse(fs.readFileSync(path.join(fixtures.gated,entry.file),'utf8'));
+  report.metric_gates.checks[0].threshold=.2;
+  const bytes=Buffer.from(JSON.stringify(report));entry.sha256=createHash('sha256').update(bytes).digest('hex');
+  await assert.rejects(api.verifyReport(batch,entry,bytes,webcrypto.subtle),/门禁与索引/);
+  const forged=api.parseIndex(text('gated'));
+  const item=forged.models[1];
+  const changed=JSON.parse(fs.readFileSync(path.join(fixtures.gated,item.file),'utf8'));
+  changed.metric_gates.checks[0].baseline=.9;changed.metric_gates.checks[0].drop=.65;
+  item.gates=changed.metric_gates;
+  const forgedBytes=Buffer.from(JSON.stringify(changed));item.sha256=createHash('sha256').update(forgedBytes).digest('hex');
+  await assert.rejects(api.verifyReport(forged,item,forgedBytes,webcrypto.subtle),/基线指标/);
 });
 test('changed bytes and unavailable digest support do not bypass verification',async()=>{
   const batch=api.parseIndex(text('bbox'));const entry=batch.models[0];

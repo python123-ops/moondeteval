@@ -32,6 +32,62 @@
     }
   }
 
+  function gateReport(value) {
+    if (!object(value) || value.format_version !== "1" || !["passed", "failed"].includes(value.status) ||
+        !["fail", "skip"].includes(value.undefined_policy) || !Array.isArray(value.checks) || value.checks.length < 1 || value.checks.length > 1000) {
+      throw new Error("指标门禁结果格式无效");
+    }
+    const seen = new Set();
+    for (const row of value.checks) {
+      if (!object(row) || !["minimum", "max_drop"].includes(row.kind) || !METRICS.includes(row.metric) ||
+          !Number.isFinite(row.threshold) || row.threshold < 0 || row.threshold > 1 ||
+          !(row.category_id === null || (Number.isInteger(row.category_id) && row.category_id >= -2147483648 && row.category_id <= 2147483647)) ||
+          !["passed", "failed", "skipped"].includes(row.status)) throw new Error("指标门禁规则无效");
+      for (const key of ["baseline", "candidate"]) {
+        if (!(row[key] === null || (Number.isFinite(row[key]) && row[key] >= 0 && row[key] <= 1))) throw new Error("指标门禁数值无效");
+      }
+      if (!(row.drop === null || (Number.isFinite(row.drop) && row.drop >= -1 && row.drop <= 1))) throw new Error("指标门禁下降量无效");
+      const key = JSON.stringify([row.kind, row.metric, row.category_id]);
+      if (seen.has(key)) throw new Error("指标门禁规则重复");
+      seen.add(key);
+      if (row.status === "passed") {
+        if (row.reason !== "ok" || row.candidate === null || (row.kind === "max_drop" && (row.baseline === null || row.drop === null))) throw new Error("指标门禁通过状态不完整");
+      } else if (["undefined_candidate", "undefined_baseline"].includes(row.reason)) {
+        if ((row.reason === "undefined_candidate" && row.candidate !== null) ||
+            (row.reason === "undefined_baseline" && (row.kind !== "max_drop" || row.baseline !== null)) ||
+            row.drop !== null || row.status !== (value.undefined_policy === "skip" ? "skipped" : "failed")) throw new Error("指标门禁未定义状态不一致");
+      } else if (row.status !== "failed" || row.candidate === null || row.reason !== (row.kind === "minimum" ? "below_minimum" : "drop_exceeded") ||
+                 (row.kind === "max_drop" && (row.baseline === null || row.drop === null))) throw new Error("指标门禁失败原因无效");
+    }
+    const failed = value.checks.some(row => row.status === "failed");
+    const allSkipped = value.checks.every(row => row.status === "skipped");
+    if (value.status !== (failed || allSkipped ? "failed" : "passed") || value.reason !== (failed ? "rules_failed" : allSkipped ? "all_skipped" : "ok")) throw new Error("指标门禁汇总状态不一致");
+    return value;
+  }
+
+  function gateFingerprint(value) {
+    if (value === undefined) return undefined;
+    gateReport(value);
+    return JSON.stringify([value.format_version, value.status, value.undefined_policy, value.reason,
+      value.checks.map(row => [row.kind, row.metric, row.category_id, row.threshold, row.baseline, row.candidate, row.drop, row.status, row.reason])]);
+  }
+
+  function bindGates(gates, candidate, baseline) {
+    if (gates === undefined) return;
+    gateReport(gates);
+    const metric = (report, row) => {
+      const source = row.category_id === null ? report.summary : report.classes.find(item => item.category_id === row.category_id)?.metrics;
+      if (!source) throw new Error("指标门禁引用未知类别");
+      return source[row.metric] === -1 ? null : source[row.metric];
+    };
+    for (const row of gates.checks) {
+      if (row.candidate !== metric(candidate, row) || (baseline && row.baseline !== metric(baseline, row))) throw new Error("指标门禁数值与报告不同");
+      // Check recorded arithmetic, without deciding whether a threshold passes.
+      const expected = row.baseline === null || row.candidate === null ? null : row.baseline - row.candidate;
+      if (expected === null ? row.drop !== null : row.drop === null || Math.abs(row.drop - expected) > 1e-12) throw new Error("指标门禁下降量与报告不同");
+    }
+  }
+
   function evaluation(value, name) {
     if (!object(value) || value.schema_version !== "0.1.0") {
       throw new Error(`${name} 不是 MoonDetEval schema 0.1.0 报告`);
@@ -55,6 +111,7 @@
     safeIds(value.image_summaries, ["image_id"], `${name}.image_summaries`);
     safeIds(value.pr_curves, ["category_id"], `${name}.pr_curves`);
     safeIds(value.diagnostics, ["image_id", "category_id", "detection_id", "ground_truth_id"], `${name}.diagnostics`);
+    bindGates(value.metric_gates, value);
     return value;
   }
 
@@ -68,9 +125,11 @@
     if (!object(value) || value.schema_version !== "0.1.0") {
       throw new Error("只支持 MoonDetEval schema_version=0.1.0 的 JSON 报告");
     }
+    if (value.metric_gates !== undefined) gateReport(value.metric_gates);
     if (object(value.baseline) || object(value.candidate)) {
       evaluation(value.baseline, "baseline");
       evaluation(value.candidate, "candidate");
+      bindGates(value.metric_gates, value.candidate, value.baseline);
       if ((value.baseline.iou_type || "bbox") !== (value.candidate.iou_type || "bbox")) {
         throw new Error("双模型报告的评测类型不同，不能比较 bbox 与 mask AP");
       }
@@ -184,6 +243,7 @@
   }
 
   return {
+    gateReport, gateFingerprint, metricGates: model => model.raw.metric_gates || null,
     iouType: (model) => sides(model)[0].report.iou_type || "bbox",
     METRICS, parseReport, sides, selectedSide, overallMetrics, classIds,
     classMetrics, imageRows, curveOptions, curveData, filterDiagnostics, formatValue,

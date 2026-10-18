@@ -37,7 +37,7 @@
     "feature2Title": "错误诊断",
     "feature2Text": "逐图结果、101 点 PR 曲线，以及重复、错类、定位和背景误报的匹配记录。",
     "feature3Title": "接入方式",
-    "feature3Text": "MoonBit 内存 API、native CLI、双模型比较、批量 bbox / segm 和 AP50 门禁。",
+    "feature3Text": "MoonBit 内存 API、native CLI、双模型比较、批量 bbox / segm 和总体／逐类 AP、AR 门禁。",
     "batchTitle": "查看一批模型的结果",
     "batchText": "运行 batch_eval.py 后，在查看器中选择输出文件夹。可切换模型查看详情，并核对报告与索引的 SHA-256。",
     "batchOpen": "打开批量查看器",
@@ -61,7 +61,7 @@
     "evidenceTitle": "测试与参考对照",
     "viewCi": "查看 CI 运行记录",
     "evidence1Title": "四后端测试",
-    "evidence1Text": "Wasm、Wasm GC、JavaScript、native：核心各 79 项，源码消费者各 90 项。",
+    "evidence1Text": "Wasm、Wasm GC、JavaScript、native：核心各 90 项，源码消费者各 103 项。",
     "evidence2Title": "参考实现对照",
     "evidence2Text": "178 组多边形像素检查、42 组多边形 AP 场景及 44 组 RLE mask AP 场景。",
     "evidence3Title": "真实分割输出回放",
@@ -85,7 +85,7 @@
       "bbox": [
         "bbox 回归样例",
         "候选预测包含重复检测、类别错误和定位偏差。两组预测使用同一份真值。",
-        "AP50 从 1 降至 0.25。完整报告提供匹配 ID 和逐图错误变化。"
+        "AP50 从 1 降至 0.25，超过允许下降 0.10 的门禁。完整报告保留失败原因和匹配记录。"
       ],
       "mask": [
         "相同外接框，不同前景像素",
@@ -135,7 +135,7 @@
     "feature2Title": "Diagnostics",
     "feature2Text": "Per-image results, 101-point PR curves and matches for duplicate, class, localization and background errors.",
     "feature3Title": "Integration",
-    "feature3Text": "MoonBit API, native CLI, paired comparison, batch bbox / segm and AP50 gates.",
+    "feature3Text": "MoonBit API, native CLI, paired comparison, batch bbox / segm and overall / per-class AP, AR gates.",
     "batchTitle": "Inspect a batch of model results",
     "batchText": "Run batch_eval.py, then select its output folder in the viewer. Switch model reports and check their SHA-256 against the index.",
     "batchOpen": "Open batch viewer",
@@ -159,7 +159,7 @@
     "evidenceTitle": "Tests and reference comparisons",
     "viewCi": "View CI runs",
     "evidence1Title": "Four compilation targets",
-    "evidence1Text": "Wasm, Wasm GC, JavaScript and native: 79 core tests and 90 source-consumer tests per target.",
+    "evidence1Text": "Wasm, Wasm GC, JavaScript and native: 90 core tests and 103 source-consumer tests per target.",
     "evidence2Title": "Reference comparisons",
     "evidence2Text": "178 polygon pixel checks, 42 polygon AP cases and 44 RLE mask AP cases.",
     "evidence3Title": "Saved segmentation predictions",
@@ -183,7 +183,7 @@
       "bbox": [
         "BBox regression example",
         "Candidate predictions contain duplicates, class errors and localization errors. Both sets use the same ground truths.",
-        "AP50 falls from 1 to 0.25. The full report includes match IDs and per-image error changes."
+        "AP50 falls from 1 to 0.25, exceeding the allowed drop of 0.10. The full report retains the failed rule and matching records."
       ],
       "mask": [
         "Same enclosing boxes, different foreground",

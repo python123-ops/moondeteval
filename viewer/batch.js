@@ -46,6 +46,23 @@
     }
     const baseline = value.models.find(model => model.name === value.baseline);
     requireValue(baseline, "批量索引找不到基线模型。");
+    const gates = value.metric_gates;
+    if (gates !== undefined) {
+      requireValue(object(gates) && gates.format_version === "1" && ["passed", "failed"].includes(gates.status) &&
+        ["fail", "skip"].includes(gates.undefined_policy) && Array.isArray(gates.rules), "批量指标门禁汇总无效。");
+      requireValue(baseline.metric_gates === undefined, "基线仅作参照，不能含批量指标门禁。");
+      const checked = value.models.filter(model => model !== baseline);
+      for (const model of checked) {
+        reports.gateReport(model.metric_gates);
+        const rules = model.metric_gates.checks.map(row => ({kind: row.kind, metric: row.metric, category_id: row.category_id, threshold: row.threshold}));
+        const signature = rows => JSON.stringify(rows.map(row => object(row) ? [row.kind, row.metric, row.category_id, row.threshold] : null));
+        requireValue(model.metric_gates.undefined_policy === gates.undefined_policy &&
+          signature(rules) === signature(gates.rules), "模型指标门禁策略与索引不同。");
+      }
+      const failed = checked.filter(model => model.metric_gates.status === "failed").map(model => model.name);
+      requireValue(gates.checked_models === checked.length && JSON.stringify(gates.failed_models) === JSON.stringify(failed) &&
+        gates.status === (failed.length ? "failed" : "passed"), "批量指标门禁状态与模型不同。");
+    } else requireValue(value.models.every(model => model.metric_gates === undefined), "模型指标门禁缺少批量汇总。");
     for (const model of value.models) {
       requireValue(object(model.delta_from_baseline), "模型缺少相对基线差值。");
       for (const key of reports.METRICS) {
@@ -56,9 +73,9 @@
     }
     // Retain only fields used by the viewer; source paths and replay commands are not displayed or followed.
     return {format: value.format_version, iouType: type, version: value.evaluator_version, baseline: value.baseline,
-      config, truthCounts: value.ground_truth_counts,
+      config, gates, truthCounts: value.ground_truth_counts,
       models: value.models.map(model => ({name: model.name, file: model.report_file, sha256: model.report_sha256,
-        counts: model.counts, summary: model.summary, delta: model.delta_from_baseline}))};
+        counts: model.counts, summary: model.summary, gates: model.metric_gates, delta: model.delta_from_baseline}))};
   }
   async function verifyReport(batch, entry, bytes, subtle) {
     requireValue(subtle, "浏览器不支持 SHA-256 校验，请通过 HTTPS 或本地 HTTP 打开查看器。");
@@ -72,6 +89,13 @@
     requireValue(sameFields(model.raw.config, batch.config, CONFIG), "报告的配置与索引不同。");
     requireValue(sameFields(model.raw.counts, entry.counts, COUNTS), "报告计数与索引不同。");
     requireValue(sameFields(model.raw.summary, entry.summary, reports.METRICS), "报告摘要与索引不同。");
+    requireValue(reports.gateFingerprint(model.raw.metric_gates) === reports.gateFingerprint(entry.gates), "报告指标门禁与索引不同。");
+    for (const row of entry.gates?.checks || []) {
+      if (row.category_id === null && (row.kind === "max_drop" || row.baseline !== null)) {
+        const baseline = batch.models.find(item => item.name === batch.baseline).summary[row.metric];
+        requireValue(row.baseline === (baseline === -1 ? null : baseline), "门禁基线指标与索引不同。");
+      }
+    }
     return model;
   }
   return {parseIndex, verifyReport};

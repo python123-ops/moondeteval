@@ -95,6 +95,7 @@ def check(root, moondeteval_version="0.1.0"):
         "python123-ops/moondeteval@" + moondeteval_version), encoding="utf-8")
     if moondeteval_version != "0.1.0":
         shutil.copy2(HERE / "mask_consumer_test.mbt", root / "mask_consumer_test.mbt")
+        shutil.copy2(HERE / "gate_consumer_test.mbt", root / "gate_consumer_test.mbt")
     app = root / "app"
     app.mkdir()
     (app / "moon.pkg").write_text(APP_PKG, encoding="utf-8")

@@ -19,7 +19,8 @@ fn help_text() -> String {
   "\nInputs:\n  ground-truth.json            COCO ground truths\n  detections.json|manifest.json  COCO detections or YOLO manifest\n" +
   "\nOptions:\n  --iou-type bbox|segm          Evaluation geometry (default: bbox; segm requires COCO masks)\n  --prediction-format coco|yolo  Prediction input format (default: coco)\n  --compare OTHER.json          Compare a second prediction file\n  --compare-format coco|yolo     Second prediction format (default: coco)\n  --diagnostics                 Include matching decisions\n  --image-ranking               Include per-image results\n  --pr-curves                   Include precision-recall curves\n  --timings                     Print stage timings to stderr\n  --min-ap50 N                  Fail if AP50 is below N\n  --fail-on-warning             Fail on out-of-image warnings\n  --output PATH                 Write report to a new file\n  --max-input-bytes N           Limit each input file\n  --max-total-input-bytes N     Limit combined input size\n  --max-records N               Limit input records\n  --max-diagnostics N           Limit diagnostic entries\n  --max-report-bytes N          Limit report size\n  -h, --help                    Show this help\n" +
   "\nExamples (from source checkout):\n  moon run cli --target native -- examples/ground-truth.json examples/detections.json\n  moon run cli --target native -- examples/yolo/ground-truth.json examples/yolo/manifest.json --prediction-format yolo\n" +
-  "\nExit codes: 0 success; 2 invalid input or usage; 3 quality gate failure.\n"
+  "\nExit codes: 0 success; 2 invalid input or usage; 3 quality gate failure.\n" +
+  "\nMetric gates (source candidate; fraction units, tolerance 1e-12):\n  --min-metric METRIC=VALUE      Minimum overall metric\n  --max-metric-drop METRIC=VALUE  Maximum baseline minus candidate (requires --compare)\n  --min-class-metric ID:METRIC=VALUE  Minimum category metric\n  --max-class-drop ID:METRIC=VALUE  Maximum category drop (requires --compare)\n  --undefined-gate fail|skip      Undefined metric behavior (default: fail)\nRepeat metric rules up to 1000 times. Metric gates cannot be combined with --min-ap50.\nAll skipped rules still fail. Failed gates retain complete reports.\n"
 }
 
 ///|
@@ -57,6 +58,8 @@ async fn main {
   let mut seen_prediction_format = false
   let mut seen_comparison_format = false
   let mut minimum_ap50 : Double? = None
+  let gate_rules : Array[@moondeteval.GateRule] = []
+  let mut undefined_gate : String? = None
   let mut output_path : String? = None
   let mut max_input_bytes = 67108864
   let mut max_total_input_bytes = 134217728
@@ -66,6 +69,33 @@ async fn main {
   let mut index = 3
   while index < arguments.length() {
     match arguments[index] {
+      "--min-metric"
+      | "--max-metric-drop"
+      | "--min-class-metric"
+      | "--max-class-drop" => {
+        if index + 1 >= arguments.length() || gate_rules.length() >= 1000 {
+          fail_command("gate option requires a value and at most 1000 rules", 2)
+          return
+        }
+        let rule = parse_gate_rule(arguments[index], arguments[index + 1]) catch {
+          error => {
+            fail_command(error.message(), 2)
+            return
+          }
+        }
+        gate_rules.push(rule)
+        index += 2
+      }
+      "--undefined-gate" => {
+        if undefined_gate is Some(_) ||
+          index + 1 >= arguments.length() ||
+          (arguments[index + 1] != "fail" && arguments[index + 1] != "skip") {
+          fail_command("--undefined-gate requires fail or skip, once", 2)
+          return
+        }
+        undefined_gate = Some(arguments[index + 1])
+        index += 2
+      }
       "--iou-type" => {
         if seen_iou_type ||
           index + 1 >= arguments.length() ||
@@ -218,6 +248,37 @@ async fn main {
       }
     }
   }
+  let gate_policy = if gate_rules.is_empty() {
+    if undefined_gate is Some(_) {
+      fail_command("--undefined-gate requires metric gate rules", 2)
+      return
+    }
+    None
+  } else {
+    if minimum_ap50 is Some(_) {
+      fail_command(
+        "--min-ap50 cannot be combined with metric gate rules; use --min-metric ap50=VALUE",
+        2,
+      )
+      return
+    }
+    if comparison_path is None &&
+      gate_rules.any(rule => rule.kind() == "max_drop") {
+      fail_command("maximum-drop gates require --compare", 2)
+      return
+    }
+    Some(
+      @moondeteval.GatePolicy::new(
+        gate_rules,
+        undefined_policy=undefined_gate.unwrap_or("fail"),
+      ) catch {
+        error => {
+          fail_command(error.message(), 2)
+          return
+        }
+      },
+    )
+  }
   if seen_comparison_format && comparison_path is None {
     fail_command("--compare-format requires --compare", 2)
     return
@@ -335,6 +396,7 @@ async fn main {
     summary_line,
     evaluation_us,
     serialization_us,
+    metric_gates,
   ) = try {
     let config = @moondeteval.EvalConfig::new(
       @moondeteval.EvalConfig::coco().iou_thresholds(),
@@ -345,6 +407,10 @@ async fn main {
     let evaluation_timer = @bench.monotonic_clock_start()
     let evaluated = input.evaluate(config)
     let evaluation_us = @bench.monotonic_clock_end(evaluation_timer)
+    let metric_gates = match gate_policy {
+      Some(policy) => Some(evaluated.metric_gates(policy))
+      None => None
+    }
     match evaluated {
       Paired(comparison) => {
         let baseline = comparison.baseline()
@@ -356,7 +422,7 @@ async fn main {
           }
         }
         let serialization_timer = @bench.monotonic_clock_start()
-        let report_json = comparison.to_json_string()
+        let report_json = evaluated.json_with_gates(metric_gates)
         let serialization_us = @bench.monotonic_clock_end(serialization_timer)
         (
           report_json,
@@ -365,11 +431,12 @@ async fn main {
           "baseline AP50=\{baseline.summary().ap50()} candidate AP50=\{candidate.summary().ap50()}\n",
           evaluation_us,
           serialization_us,
+          metric_gates,
         )
       }
       Single(report) => {
         let serialization_timer = @bench.monotonic_clock_start()
-        let report_json = report.to_json_string()
+        let report_json = evaluated.json_with_gates(metric_gates)
         let serialization_us = @bench.monotonic_clock_end(serialization_timer)
         (
           report_json,
@@ -378,6 +445,7 @@ async fn main {
           "AP=\{report.summary().ap()} AP50=\{report.summary().ap50()} AR100=\{report.summary().ar100()}\n",
           evaluation_us,
           serialization_us,
+          metric_gates,
         )
       }
     }
@@ -429,6 +497,14 @@ async fn main {
     @stdio.stderr.write(
       "timings_us input=\{input_us} evaluation=\{evaluation_us} serialization=\{serialization_us} output=\{output_us}\n",
     )
+  }
+  match metric_gates {
+    Some(gates) =>
+      if gates.status() == "failed" {
+        fail_command("metric gates failed: " + gates.reason(), 3)
+        return
+      }
+    None => ()
   }
   match minimum_ap50 {
     Some(minimum) =>

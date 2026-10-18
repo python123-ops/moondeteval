@@ -86,6 +86,21 @@
     if (ids.length > 0) table("class-table", headings, api.classMetrics(model, ids[0]).map(values));
   }
 
+  const gateStatus = value => ({passed: "通过", failed: "失败", skipped: "跳过"}[value]);
+  function renderGates() {
+    const gates = api.metricGates(state.model);
+    $("gate-view").hidden = !gates;
+    if (!gates) return;
+    const reasons = {ok: "满足规则", below_minimum: "低于最低值", drop_exceeded: "下降量超限",
+      undefined_candidate: "候选指标未定义", undefined_baseline: "基线指标未定义"};
+    const number = value => value === null ? "—" : value.toFixed(4);
+    $("gate-meta").textContent = `${gateStatus(gates.status)} · 未定义指标：${gates.undefined_policy === "skip" ? "跳过" : "失败"}${gates.reason === "all_skipped" ? " · 全部规则跳过，整体失败" : ""}`;
+    table("gate-table", ["范围", "规则", "指标", "阈值", "实际值", "基线值", "下降量", "状态", "原因"],
+      gates.checks.map(row => [row.category_id === null ? "总体" : `类别 ${row.category_id}`,
+        row.kind === "minimum" ? "最低值" : "最大下降量", row.metric, number(row.threshold), number(row.candidate),
+        number(row.baseline), number(row.drop), gateStatus(row.status), reasons[row.reason]]));
+  }
+
   function renderClass() {
     const compare = state.model.kind === "comparison";
     const headings = compare ? ["指标", "基线", "候选", "变化（候选 − 基线）"] : ["指标", "数值"];
@@ -248,6 +263,7 @@
       $("diag-category").value = "";
       renderOverview(name);
       renderMetrics();
+      renderGates();
       renderImages();
       renderCurveOptions();
       renderDiagnosticOptions();
@@ -334,8 +350,9 @@
       }
       batchState = {index, files};
       $("batch-meta").textContent = `格式 ${index.format} · ${index.iouType} · evaluator ${index.version} · 基线 ${index.baseline} · ${index.truthCounts.images} 张图片。下表为索引原有摘要；选中模型后校验对应报告。`;
-      table("batch-table", ["模型", "AP", "AP50", "AP75", "Δ AP", "Δ AP50"], index.models.map(entry => [entry.name,
-        ...["ap", "ap50", "ap75"].map(key => api.formatValue(entry.summary[key])), ...["ap", "ap50"].map(key => entry.delta[key] === null ? "—" : entry.delta[key].toFixed(4))]));
+      table("batch-table", ["模型", "AP", "AP50", "AP75", "Δ AP", "Δ AP50", "指标门禁"], index.models.map(entry => [entry.name,
+        ...["ap", "ap50", "ap75"].map(key => api.formatValue(entry.summary[key])), ...["ap", "ap50"].map(key => entry.delta[key] === null ? "—" : entry.delta[key].toFixed(4)),
+        entry.name === index.baseline ? "基线参照" : entry.gates ? gateStatus(entry.gates.status) : "未启用"]));
       options("batch-model", index.models.map(entry => [entry.name, entry.name]));
       $("batch-model").value = index.baseline;
       $("batch-view").hidden = false;
