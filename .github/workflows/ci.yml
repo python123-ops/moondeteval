@@ -30,6 +30,8 @@ jobs:
         run: python3 -m unittest examples/batch_eval_test.py -v
       - name: Verify metric gates and batch failure retention
         run: python3 -m unittest examples/gate_test.py -v
+      - name: Verify reusable gate policies and frozen batch snapshots
+        run: python3 -m unittest examples/policy_test.py -v
       - name: Validate release archive contents
         run: |
           moon package
@@ -44,7 +46,7 @@ jobs:
           required = {'moon.mod', 'moon.pkg', 'LICENSE', 'README.mbt.md', 'CHANGELOG.md',
                       'pkg.generated.mbti', 'box.mbt', 'mask_rle.mbt', 'mask_rle_codec.mbt',
                       'evaluation.mbt', 'mask_evaluation.mbt', 'mask_coco_json.mbt',
-                      'mask_polygon.mbt', 'quality_gate.mbt', 'THIRD_PARTY_NOTICES.md',
+                      'mask_polygon.mbt', 'quality_gate.mbt', 'quality_gate_json.mbt', 'THIRD_PARTY_NOTICES.md',
                       'cli/main.mbt', 'cli/evaluation_input.mbt'}
           assert required <= names, required - names
           assert not any(name.startswith(('examples/', 'viewer/', 'site/')) for name in names)

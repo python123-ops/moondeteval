@@ -24,7 +24,7 @@ def verify(archive, destination, expected_version):
         names = set(zipped.namelist())
         assert not any(name.startswith(("site/", "viewer/", "examples/")) for name in names)
         assert not any("__pycache__" in name.split("/") or name.endswith((".pyc", ".pyo")) for name in names)
-        assert {"moon.mod", "mask_polygon.mbt", "mask_evaluation.mbt", "quality_gate.mbt", "THIRD_PARTY_NOTICES.md"} <= names
+        assert {"moon.mod", "mask_polygon.mbt", "mask_evaluation.mbt", "quality_gate.mbt", "quality_gate_json.mbt", "THIRD_PARTY_NOTICES.md"} <= names
         zipped.extractall(module)
     assert f'version = "{expected_version}"' in (module / "moon.mod").read_text(encoding="utf-8")
     consumer.mkdir()
@@ -60,20 +60,27 @@ def verify(archive, destination, expected_version):
         executable = module / "_build/native/release/build/cli/cli.exe"
         if not executable.exists():
             executable = executable.with_name("cli")
+        policy = fixtures / "policy.json"
+        policy.write_text(json.dumps({"format_version": "1", "rules": [
+            {"kind": "minimum", "metric": "ap", "threshold": 1},
+            {"kind": "max_drop", "metric": "ap", "threshold": 0}]}), encoding="utf-8")
+        canonical = json.loads(command(module, [executable, "--check-gate-policy", policy]))
+        assert canonical["undefined_policy"] == "fail" and len(canonical["rules"]) == 2
         gated = json.loads(command(module, [executable, fixtures / "mask-ground-truth.json", fixtures / "mask-candidate.json",
                                            "--iou-type", "segm", "--compare", fixtures / "mask-baseline.json",
-                                           "--max-metric-drop", "ap=0"], expected=3))
-        assert gated["metric_gates"]["status"] == "failed" and gated["metric_gates"]["checks"][0]["drop"] == 1
+                                           "--gate-policy", policy], expected=3))
+        assert gated["metric_gates"]["status"] == "failed" and gated["metric_gates"]["checks"][1]["drop"] == 1
         output = destination / "batch"
         command(module, [sys.executable, ROOT / "examples/batch_eval.py", "--cli", executable,
                          "--ground-truth", fixtures / "mask-ground-truth.json", "--iou-type", "segm", "--baseline", "baseline",
                          "--model", "baseline", fixtures / "mask-baseline.json", "--model", "candidate", fixtures / "mask-candidate.json",
                          "--model", "polygon", fixtures / "polygon-detections.json", "--output-dir", output,
-                         "--min-metric", "ap=1", "--max-metric-drop", "ap=0", *flags])
+                         "--gate-policy", policy, *flags])
         index = json.loads((output / "index.json").read_text(encoding="utf-8"))
         assert index["format_version"] == "2" and index["iou_type"] == "segm" and index["evaluator_version"] == expected_version
         assert [item["summary"]["ap"] for item in index["models"]] == [0, 1, 1]
         assert index["metric_gates"]["status"] == "passed" and index["metric_gates"]["checked_models"] == 2
+        assert (output / "gate-policy.json").read_bytes() == policy.read_bytes()
         status = "passed"
     except Exception:
         status = "failed"

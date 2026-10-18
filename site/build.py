@@ -45,7 +45,8 @@ def build(output):
                    "--iou-type", geometry, "--compare", inputs[2], "--diagnostics", "--image-ranking", "--pr-curves"]
         expected_exit = 3 if name == "bbox" else 0
         if name == "bbox":
-            command += ["--max-metric-drop", "ap50=0.1"]
+            inputs.append("examples/regression-policy.json")
+            command += ["--gate-policy", inputs[-1]]
         result = subprocess.run(command, cwd=ROOT, text=True, encoding="utf-8", capture_output=True)
         assert result.returncode == expected_exit, (name, result.returncode, result.stderr)
         report = json.loads(result.stdout)

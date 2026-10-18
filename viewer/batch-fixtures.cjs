@@ -34,11 +34,16 @@ function createFixtures(){
       '--max-metric-drop','ap50=0.1','--min-metric','ar100=0.5','--output-dir',gated];
     try{execFileSync(process.env.PYTHON || (process.platform==='win32'?'python':'python3'),gatedArgs,{cwd:root,stdio:'pipe'});throw new Error('Expected quality failure');}
     catch(error){if(error.status!==3)throw error;}
+    const policy=path.join(directory,'policy');
+    const policyArgs=[...gatedArgs.slice(0,gatedArgs.indexOf('--max-metric-drop')),
+      '--gate-policy',path.join(examples,'regression-policy.json'),'--output-dir',policy];
+    try{execFileSync(process.env.PYTHON || (process.platform==='win32'?'python':'python3'),policyArgs,{cwd:root,stdio:'pipe'});throw new Error('Expected policy quality failure');}
+    catch(error){if(error.status!==3)throw error;}
     for(const name of fs.readdirSync(path.join(directory,'bbox')))fs.copyFileSync(path.join(directory,'bbox',name),path.join(legacy,name));
     const index=JSON.parse(fs.readFileSync(path.join(legacy,'index.json'),'utf8'));
     index.format_version='1';delete index.iou_type;index.models.forEach(model=>delete model.iou_type);
     fs.writeFileSync(path.join(legacy,'index.json'),JSON.stringify(index));
-    return {directory,bbox:path.join(directory,'bbox'),segm:path.join(directory,'segm'),legacy,gated,
+    return {directory,bbox:path.join(directory,'bbox'),segm:path.join(directory,'segm'),legacy,gated,policy,
       cleanup};
   }catch(error){cleanup();throw error;}
 }

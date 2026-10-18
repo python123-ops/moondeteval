@@ -2,6 +2,10 @@
 
 ## Unreleased (source checkout)
 
+- Add versioned gate-policy JSON round trips, native `--gate-policy` evaluation and `--check-gate-policy` preflight. Batch runs freeze and hash the shared configuration, retain its exact bytes, and reject policy changes before committing a result directory. The viewer verifies optional policy snapshots against both their digest and native rule metadata. Existing inline rules and report/index versions are unchanged.
+
+- Separate frozen prediction filenames from ground-truth and policy snapshots so valid model names such as `ground-truth` and `gate-policy` cannot overwrite those inputs.
+
 - Preserve a valid comparison delta of `-1` in overall and category tables instead of labeling it as an undefined metric.
 
 - Add shared MoonBit minimum-metric and baseline-drop gates for all 12 AP/AR metrics, including signed category scopes, explicit undefined handling and complete per-rule results. Expose them through the candidate CLI and batch evaluator; quality failures retain complete reports and return `3`. Extend optional report/batch fields and the read-only viewer without changing schema `0.1.0`, batch format `2` or legacy no-rule output. The bbox website demo now demonstrates an intentional AP50 regression failure.

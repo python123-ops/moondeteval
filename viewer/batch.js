@@ -63,6 +63,10 @@
       requireValue(gates.checked_models === checked.length && JSON.stringify(gates.failed_models) === JSON.stringify(failed) &&
         gates.status === (failed.length ? "failed" : "passed"), "批量指标门禁状态与模型不同。");
     } else requireValue(value.models.every(model => model.metric_gates === undefined), "模型指标门禁缺少批量汇总。");
+    if (value.gate_policy !== undefined) {
+      requireValue(value.format_version === "2" && gates && object(value.gate_policy) &&
+        value.gate_policy.file === "gate-policy.json" && hash(value.gate_policy.sha256), "批量策略快照元数据无效。");
+    }
     for (const model of value.models) {
       requireValue(object(model.delta_from_baseline), "模型缺少相对基线差值。");
       for (const key of reports.METRICS) {
@@ -73,7 +77,7 @@
     }
     // Retain only fields used by the viewer; source paths and replay commands are not displayed or followed.
     return {format: value.format_version, iouType: type, version: value.evaluator_version, baseline: value.baseline,
-      config, gates, truthCounts: value.ground_truth_counts,
+      config, gates, policy: value.gate_policy, truthCounts: value.ground_truth_counts,
       models: value.models.map(model => ({name: model.name, file: model.report_file, sha256: model.report_sha256,
         counts: model.counts, summary: model.summary, gates: model.metric_gates, delta: model.delta_from_baseline}))};
   }
@@ -98,5 +102,23 @@
     }
     return model;
   }
-  return {parseIndex, verifyReport};
+  async function verifyPolicy(batch, bytes, subtle) {
+    requireValue(batch.policy && bytes.byteLength <= 262144, "策略快照缺失或超过 256 KiB。");
+    requireValue(subtle, "浏览器不支持 SHA-256 校验。");
+    const digest = Array.from(new Uint8Array(await subtle.digest("SHA-256", bytes)), byte => byte.toString(16).padStart(2, "0")).join("");
+    requireValue(digest === batch.policy.sha256, "策略快照 SHA-256 与索引不同。");
+    let value;
+    try { value = JSON.parse(new TextDecoder("utf-8", {fatal: true}).decode(bytes)); } catch (_) { throw new Error("策略快照不是有效 UTF-8 JSON。"); }
+    requireValue(object(value) && value.format_version === "1" && Object.keys(value).every(key => ["format_version", "undefined_policy", "rules"].includes(key)) &&
+      (value.undefined_policy === undefined ? "fail" : value.undefined_policy) === batch.gates.undefined_policy && Array.isArray(value.rules) &&
+      value.rules.length === batch.gates.rules.length, "策略快照与指标门禁策略不同。");
+    for (let i = 0; i < value.rules.length; i++) {
+      const rule = value.rules[i], expected = batch.gates.rules[i];
+      requireValue(object(rule) && Object.keys(rule).every(key => ["kind", "metric", "threshold", "category_id"].includes(key)) &&
+        ["kind", "metric", "threshold"].every(key => rule[key] === expected[key]) &&
+        (rule.category_id === undefined ? null : rule.category_id) === expected.category_id, "策略快照规则与指标门禁不同。");
+    }
+    return value;
+  }
+  return {parseIndex, verifyReport, verifyPolicy};
 });

@@ -198,6 +198,26 @@ python examples/batch_eval.py --ground-truth examples/compare-ground-truth.json 
 
 The tool completes every model, saves all reports plus per-model and aggregate `metric_gates` in format `2`, then returns `3` if any candidate fails. Input/configuration/resource errors abort without publishing a partial directory. The viewer shows the native rule outcomes and failure reasons, verifies report/index gate consistency, and accepts old reports and format `1` indexes. It does not decide thresholds in JavaScript. These gates require the candidate source, not the published `0.1.0` package. Run `python -m unittest examples/gate_test.py -v` for CLI and batch failure-path checks.
 
+### Reusable policy files
+
+Keep the same rules across local runs and CI with `GatePolicy::from_json_string(source)`, `to_json()` and `to_json_string()`. The parser uses the existing constructors and gate evaluator. For example, [regression-policy.json](examples/regression-policy.json) contains:
+
+```json
+{"format_version":"1","undefined_policy":"fail","rules":[{"kind":"max_drop","metric":"ap50","threshold":0.1},{"kind":"minimum","metric":"ar100","threshold":0.5}]}
+```
+
+`format_version` and `rules` are required; `undefined_policy` defaults to `fail`. Each rule requires `kind`, `metric` and numeric `threshold`. Omitted or `null` `category_id` means overall; a signed 32-bit integer selects a category. Serialization writes the default policy and explicit `null` scope, preserving rule order. Unknown keys, versions, kinds and invalid numeric/category types are rejected as `InvalidConfig`; shared duplicate/1,000-rule/finite-threshold checks also apply. Like the existing JSON inputs, duplicate object keys use the last value; duplicate rules are rejected separately.
+
+```sh
+moon run cli --target native -- --check-gate-policy examples/regression-policy.json
+moon run cli --target native -- examples/compare-ground-truth.json examples/compare-baseline.json --compare examples/compare-candidate.json --gate-policy examples/regression-policy.json
+python examples/batch_eval.py --ground-truth examples/compare-ground-truth.json --model baseline examples/compare-baseline.json --model candidate examples/compare-candidate.json --model unchanged examples/compare-baseline.json --baseline baseline --gate-policy examples/regression-policy.json --output-dir ../policy-batch
+```
+
+The first command validates configuration without loading a dataset and prints canonical policy JSON, returning `0` or `2`. It cannot check whether a category exists in a particular dataset. The evaluation commands intentionally return `3` for the AP50 regression while retaining complete results. File policies are exclusive with inline metric rules, `--undefined-gate` and legacy `--min-ap50`; `--fail-on-warning` remains independent. Drop rules still require a comparison. Policy files must be UTF-8 JSON and at most **256 KiB**; evaluation also counts their bytes toward `--max-input-bytes` and `--max-total-input-bytes`. The library string API uses the JSON parser's default nesting guard; it does not impose filesystem byte limits.
+
+Batch evaluation validates the frozen policy through the native CLI before model evaluation. It uses the same snapshot for every candidate and rejects original or frozen-policy changes before publishing a directory. Successful evaluation, including quality failures, saves the original bytes as `gate-policy.json`. The optional format-2 index field `gate_policy={"file":"gate-policy.json","sha256":"…"}` identifies that snapshot; `metric_gates` still carries native rule outcomes. Replay commands reference the original policy path; if it has changed, use the saved snapshot to restore the checked configuration. The viewer requires this file when the index references it, verifies its SHA-256 and matches the policy to native rule metadata before displaying the batch. Hash checks establish consistency, not producer authenticity. Old indexes need no policy file. Run `python -m unittest examples/policy_test.py -v` for file, preflight, snapshot-mutation and resource-boundary checks.
+
 From a checkout of this repository, run:
 
 ```sh

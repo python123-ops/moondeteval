@@ -231,9 +231,13 @@ pub struct GatePolicy {
   rules : Array[GateRule]
   undefined_policy : String
 }
+pub fn GatePolicy::from_json_string(String) -> Self raise EvalError
 pub fn GatePolicy::new(Array[GateRule], undefined_policy? : String) -> Self raise EvalError
 pub fn GatePolicy::rules(Self) -> Array[GateRule]
+pub fn GatePolicy::to_json(Self) -> Json
+pub fn GatePolicy::to_json_string(Self) -> String
 pub fn GatePolicy::undefined_policy(Self) -> String
+pub impl ToJson for GatePolicy
 
 pub struct GateReport {
   format_version : String

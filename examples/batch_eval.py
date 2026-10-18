@@ -104,6 +104,13 @@ class GateArgument(argparse.Action):
         namespace.gate_options = rules
 
 
+class PolicyArgument(argparse.Action):
+    def __call__(self, parser, namespace, value, option_string=None):
+        if getattr(namespace, self.dest, None) is not None:
+            parser.error("--gate-policy must be specified only once")
+        setattr(namespace, self.dest, value)
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ground-truth", required=True, type=input_path)
@@ -120,6 +127,7 @@ def parse_args(argv=None):
     for flag in GATE_OPTIONS:
         parser.add_argument(flag, action=GateArgument, dest="gate_options")
     parser.add_argument("--undefined-gate", choices=("fail", "skip"))
+    parser.add_argument("--gate-policy", type=input_path, action=PolicyArgument, help="shared policy JSON; exclusive with inline metric rules")
     # argparse otherwise treats a signed CATEGORY:METRIC=VALUE as an option.
     original = list(sys.argv[1:] if argv is None else argv)
     normalized = []
@@ -136,6 +144,10 @@ def parse_args(argv=None):
 
 def run_batch(args):
     gate_options = args.gate_options or []
+    policy_path = args.gate_policy
+    if policy_path and (gate_options or args.undefined_gate is not None):
+        raise BatchError("--gate-policy cannot be combined with inline metric rules or --undefined-gate")
+    gate_enabled = bool(gate_options or policy_path)
     if len(gate_options) > 1000 or (args.undefined_gate is not None and not gate_options):
         raise BatchError("metric gates require 1 to 1000 rules; --undefined-gate requires rules")
     gate_flags = [item for pair in gate_options for item in pair]
@@ -181,10 +193,35 @@ def run_batch(args):
         frozen.mkdir()
         stage = temporary / "bundle"
         stage.mkdir()
+        policy_hash = None
+        expected_policy = None
+        replay_gate_flags = gate_flags
+        if policy_path:
+            if policy_path.stat().st_size > 262144:
+                raise BatchError("gate policy exceeds the 256 KiB limit")
+            policy_file = temporary / "gate-policy.json"
+            policy_hash = snapshot(policy_path, policy_file)
+            if policy_file.stat().st_size > 262144:
+                raise BatchError("gate policy grew beyond the 256 KiB limit")
+            validation = subprocess.run(prefix + ["--check-gate-policy", str(policy_file)], cwd=ROOT,
+                                        capture_output=True, text=True, encoding="utf-8", errors="replace")
+            if validation.returncode != 0:
+                raise BatchError("policy validation failed: " + validation.stderr.strip())
+            try:
+                parsed_policy = json.loads(validation.stdout)
+                if parsed_policy["format_version"] != "1" or not isinstance(parsed_policy["rules"], list) or not 1 <= len(parsed_policy["rules"]) <= 1000:
+                    raise ValueError("invalid native policy description")
+                expected_policy = {key: parsed_policy[key] for key in ("undefined_policy", "rules")}
+                has_drop = any(rule["kind"] == "max_drop" for rule in parsed_policy["rules"])
+            except (KeyError, TypeError, ValueError) as error:
+                raise BatchError("invalid native policy description") from error
+            gate_flags = ["--gate-policy", str(policy_file)]
+            replay_gate_flags = ["--gate-policy", str(policy_path)]
         ground_hash = snapshot(args.ground_truth, frozen / "ground-truth.json")
         model_inputs = []
         for name, source in models:
-            model_inputs.append((name, source, frozen / f"{name}.json", snapshot(source, frozen / f"{name}.json")))
+            target = frozen / f"model-{name}.json"
+            model_inputs.append((name, source, target, snapshot(source, target)))
 
         entries = []
         common_config = None
@@ -192,11 +229,11 @@ def run_batch(args):
         evaluator_version = None
         common_gates = None
         baseline_input = next(item for item in model_inputs if item[0] == args.baseline)
-        ordered_inputs = sorted(model_inputs, key=lambda item: item[0] != args.baseline) if gate_options else model_inputs
+        ordered_inputs = sorted(model_inputs, key=lambda item: item[0] != args.baseline) if gate_enabled else model_inputs
         for name, source, frozen_source, source_hash in ordered_inputs:
             report_name = f"{name}.report.json"
             report_path = stage / report_name
-            gated = bool(gate_options) and name != args.baseline
+            gated = gate_enabled and name != args.baseline
             paired = gated and has_drop
             cli_output = temporary / (name + ".paired.json") if paired else report_path
             input_args = [str(frozen / "ground-truth.json"), str(baseline_input[2] if paired else frozen_source)]
@@ -239,11 +276,13 @@ def run_batch(args):
                 "report_sha256": digest(report_path),
                 "counts": report["counts"],
                 "summary": {metric: report["summary"][metric] for metric in METRICS},
-                "replay_command": prefix + [str(args.ground_truth), str(baseline_input[1] if paired else source)] + flags + (["--compare", str(source)] if paired else []) + (gate_flags if gated else []),
+                "replay_command": prefix + [str(args.ground_truth), str(baseline_input[1] if paired else source)] + flags + (["--compare", str(source)] if paired else []) + (replay_gate_flags if gated else []),
             }
             if gated:
                 signature = {"undefined_policy": report["metric_gates"]["undefined_policy"],
                              "rules": [{key: row.get(key) for key in ("kind", "metric", "category_id", "threshold")} for row in report["metric_gates"]["checks"]]}
+                if expected_policy is not None and signature != expected_policy:
+                    raise BatchError(f"{name}: report policy differs from the validated policy file")
                 if common_gates is None:
                     common_gates = signature
                 elif signature != common_gates:
@@ -267,6 +306,12 @@ def run_batch(args):
         for name, source, _, source_hash in model_inputs:
             if digest(source) != source_hash:
                 raise BatchError(f"{name}: predictions changed during evaluation")
+        if policy_path:
+            if digest(policy_path) != policy_hash or digest(policy_file) != policy_hash:
+                raise BatchError("gate policy changed during evaluation")
+            shutil.copyfile(policy_file, stage / "gate-policy.json")
+            if digest(stage / "gate-policy.json") != policy_hash:
+                raise BatchError("gate policy snapshot changed while being saved")
         index = {
             "format_version": "2",
             "iou_type": args.iou_type,
@@ -280,7 +325,9 @@ def run_batch(args):
             "baseline": args.baseline,
             "models": entries,
         }
-        if gate_options:
+        if policy_path:
+            index["gate_policy"] = {"file": "gate-policy.json", "sha256": policy_hash}
+        if gate_enabled:
             checked_models = [entry for entry in entries if entry["name"] != args.baseline]
             failed = [entry["name"] for entry in checked_models if entry["metric_gates"]["status"] == "failed"]
             index["metric_gates"] = {
@@ -299,7 +346,7 @@ def run_batch(args):
 def main(argv=None):
     try:
         result = run_batch(parse_args(argv))
-    except BatchError as error:
+    except (BatchError, OSError) as error:
         print(f"batch evaluation: {error}", file=sys.stderr)
         return 2
     print(result / "index.json")

@@ -1,4 +1,15 @@
 ///|
+async fn load_gate_policy(
+  path : String,
+  max_input_bytes : Int32,
+  remaining_bytes : Int64,
+) -> (@moondeteval.GatePolicy, Int64) raise @moondeteval.EvalError {
+  let limit = if max_input_bytes < 262144 { max_input_bytes } else { 262144 }
+  let (content, size) = read_limited_input(path, limit, remaining_bytes)
+  (@moondeteval.GatePolicy::from_json_string(content), size)
+}
+
+///|
 fn parse_gate_rule(
   option : String,
   text : String,

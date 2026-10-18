@@ -341,6 +341,13 @@
         if (paths.has(relative)) throw new Error("选择的文件夹中存在重复文件路径。");
         paths.set(relative, file);
       }
+      if (index.policy) {
+        const policy = paths.get(prefix + index.policy.file);
+        if (!policy) throw new Error("缺少策略快照：gate-policy.json");
+        if (policy.size > 262144) throw new Error("策略快照超过 256 KiB 上限。");
+        await globalThis.MoonDetEvalBatch.verifyPolicy(index, await policy.arrayBuffer(), globalThis.crypto?.subtle);
+        if (sequence !== loadSequence) return;
+      }
       const files = new Map();
       for (const entry of index.models) {
         const file = paths.get(prefix + entry.file);
@@ -350,6 +357,7 @@
       }
       batchState = {index, files};
       $("batch-meta").textContent = `格式 ${index.format} · ${index.iouType} · evaluator ${index.version} · 基线 ${index.baseline} · ${index.truthCounts.images} 张图片。下表为索引原有摘要；选中模型后校验对应报告。`;
+      if (index.policy) $("batch-meta").textContent += " 策略快照 SHA-256 及规则已核对。";
       table("batch-table", ["模型", "AP", "AP50", "AP75", "Δ AP", "Δ AP50", "指标门禁"], index.models.map(entry => [entry.name,
         ...["ap", "ap50", "ap75"].map(key => api.formatValue(entry.summary[key])), ...["ap", "ap50"].map(key => entry.delta[key] === null ? "—" : entry.delta[key].toFixed(4)),
         entry.name === index.baseline ? "基线参照" : entry.gates ? gateStatus(entry.gates.status) : "未启用"]));

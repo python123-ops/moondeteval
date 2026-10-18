@@ -113,6 +113,24 @@ async function batchReady(page,name='baseline'){
   assert.equal(await page.locator('#load-error').isVisible(),false,await page.locator('#load-error').textContent());
 }
 
+test('policy batch import verifies snapshot hash and rules before showing results',async()=>{
+  const [ctx,page]=await context();await page.goto(base+'viewer/');
+  await page.locator('#batch-folder').setInputFiles(batches.policy);await batchReady(page);
+  assert.match(await page.locator('#batch-meta').textContent(),/策略快照 SHA-256 及规则已核对/);
+  await page.locator('#batch-model').selectOption('candidate');await batchReady(page,'candidate');
+  assert.match(await page.locator('#gate-table').textContent(),/下降量超限/);
+  const folder=path.join(batches.directory,'broken-policy');fs.mkdirSync(folder);
+  for(const name of fs.readdirSync(batches.policy))fs.copyFileSync(path.join(batches.policy,name),path.join(folder,name));
+  fs.appendFileSync(path.join(folder,'gate-policy.json'),' ');
+  await page.locator('#batch-folder').setInputFiles(folder);await page.locator('#load-error').waitFor({state:'visible'});
+  assert.match(await page.locator('#load-error').textContent(),/策略快照 SHA-256/);
+  assert.equal(await page.locator('#batch-view').isVisible(),false);
+  fs.unlinkSync(path.join(folder,'gate-policy.json'));
+  await page.locator('#batch-folder').setInputFiles(folder);await page.locator('#load-error').waitFor({state:'visible'});
+  assert.match(await page.locator('#load-error').textContent(),/缺少策略快照/);
+  await ctx.close();
+});
+
 test('regression gates show native failure reasons, mixed batch outcomes and mobile details',async()=>{
   const [ctx,page]=await context({viewport:{width:390,height:844}});
   await page.goto(base+'viewer/?demo=bbox');await page.locator('#gate-view').waitFor({state:'visible'});

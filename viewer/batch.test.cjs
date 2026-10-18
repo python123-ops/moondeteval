@@ -40,13 +40,26 @@ test('mixed tasks, malformed config, counts and inconsistent deltas fail before 
   }
 });
 test('every real report passes byte hash and semantic consistency checks',async()=>{
-  for(const kind of ['bbox','segm','legacy','gated']){
+  for(const kind of ['bbox','segm','legacy','gated','policy']){
     const batch=api.parseIndex(text(kind));
     for(const entry of batch.models){
       const bytes=fs.readFileSync(path.join(fixtures[kind],entry.file));
       const model=await api.verifyReport(batch,entry,bytes,webcrypto.subtle);
       assert.equal(model.kind,'single');assert.equal(model.raw.summary.ap,entry.summary.ap);
     }
+  }
+});
+
+test('policy snapshots require matching bytes and native rule metadata',async()=>{
+  const batch=api.parseIndex(text('policy'));
+  const bytes=fs.readFileSync(path.join(fixtures.policy,'gate-policy.json'));
+  const policy=await api.verifyPolicy(batch,bytes,webcrypto.subtle);
+  assert.equal(policy.rules.length,2);
+  await assert.rejects(api.verifyPolicy(batch,Buffer.concat([bytes,Buffer.from(' ')]),webcrypto.subtle),/SHA-256/);
+  const changed=structuredClone(batch);changed.gates.rules[0].threshold=.5;
+  await assert.rejects(api.verifyPolicy(changed,bytes,webcrypto.subtle),/规则/);
+  for(const change of [v=>v.gate_policy.file='../policy.json',v=>v.gate_policy.sha256='bad',v=>delete v.metric_gates]){
+    const value=raw('policy');change(value);assert.throws(()=>api.parseIndex(JSON.stringify(value)),/策略|门禁/);
   }
 });
 

@@ -38,12 +38,14 @@ test "consumer evaluates a polygon mask then applies category and undefined rule
     @moondeteval.MaskDetection::new(1, 1, 85, mask, 0.8),
   ])
   let result = report.check_gates(
-    @moondeteval.GatePolicy::new(
-      [
-        @moondeteval.GateRule::minimum("ap", 1.0, category_id=85),
-        @moondeteval.GateRule::minimum("ap_large", 0.0),
-      ],
-      undefined_policy="skip",
+    @moondeteval.GatePolicy::from_json_string(
+      @moondeteval.GatePolicy::new(
+        [
+          @moondeteval.GateRule::minimum("ap", 1.0, category_id=85),
+          @moondeteval.GateRule::minimum("ap_large", 0.0),
+        ],
+        undefined_policy="skip",
+      ).to_json_string(),
     ),
   )
   assert_eq(result.status(), "passed")
