@@ -14,7 +14,8 @@ function createFixtures(){
   }
   try{
     execFileSync('moon',['build','cli','--target','native','--release'],{cwd:root,stdio:'pipe'});
-    const executable=path.join(root,'_build/native/release/build/cli',process.platform==='win32'?'cli.exe':'cli');
+    const executable=['cli.exe','cli'].map(name=>path.join(root,'_build/native/release/build/cli',name)).find(file=>fs.existsSync(file));
+    if(!executable)throw new Error('Native CLI build did not produce an executable');
     const examples=path.join(root,'examples');
     for(const [type,truth,models] of [
       ['bbox','compare-ground-truth.json',[['baseline','compare-baseline.json'],['candidate','compare-candidate.json']]],
