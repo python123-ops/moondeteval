@@ -8,7 +8,7 @@ import {
 // Values
 pub fn compare_mask_predictions(MaskDataset, Array[MaskDetection], Array[MaskDetection]) -> ComparisonReport raise EvalError
 
-pub fn compare_mask_predictions_with_config(MaskDataset, Array[MaskDetection], Array[MaskDetection], EvalConfig) -> ComparisonReport raise EvalError
+pub fn compare_mask_predictions_with_config(MaskDataset, Array[MaskDetection], Array[MaskDetection], EvalConfig, max_iou_cache_pairs? : Int) -> ComparisonReport raise EvalError
 
 pub fn compare_predictions(Dataset, Array[Detection], Array[Detection]) -> ComparisonReport raise EvalError
 
@@ -18,7 +18,7 @@ pub fn evaluate(Dataset, Array[Detection]) -> EvaluationReport raise EvalError
 
 pub fn evaluate_masks(MaskDataset, Array[MaskDetection]) -> EvaluationReport raise EvalError
 
-pub fn evaluate_masks_with_config(MaskDataset, Array[MaskDetection], EvalConfig) -> EvaluationReport raise EvalError
+pub fn evaluate_masks_with_config(MaskDataset, Array[MaskDetection], EvalConfig, max_iou_cache_pairs? : Int) -> EvaluationReport raise EvalError
 
 pub fn evaluate_with_config(Dataset, Array[Detection], EvalConfig) -> EvaluationReport raise EvalError
 

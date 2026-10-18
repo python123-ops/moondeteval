@@ -24,7 +24,7 @@ def verify(archive, destination, expected_version):
         names = set(zipped.namelist())
         assert not any(name.startswith(("site/", "viewer/", "examples/")) for name in names)
         assert not any("__pycache__" in name.split("/") or name.endswith((".pyc", ".pyo")) for name in names)
-        assert {"moon.mod", "mask_polygon.mbt", "mask_evaluation.mbt", "quality_gate.mbt", "quality_gate_json.mbt", "THIRD_PARTY_NOTICES.md"} <= names
+        assert {"moon.mod", "evaluation_prepare.mbt", "mask_polygon.mbt", "mask_evaluation.mbt", "quality_gate.mbt", "quality_gate_json.mbt", "THIRD_PARTY_NOTICES.md"} <= names
         zipped.extractall(module)
     assert f'version = "{expected_version}"' in (module / "moon.mod").read_text(encoding="utf-8")
     consumer.mkdir()
@@ -51,7 +51,7 @@ def verify(archive, destination, expected_version):
         fixtures.mkdir()
         for name in ("mask-ground-truth.json", "mask-baseline.json", "mask-candidate.json", "polygon-detections.json"):
             shutil.copyfile(ROOT / "examples" / name, fixtures / name)
-        flags = ["--diagnostics", "--image-ranking", "--pr-curves"]
+        flags = ["--diagnostics", "--image-ranking", "--pr-curves", "--max-iou-cache-pairs", "0"]
         paired = json.loads(command(module, ["moon", "run", "cli", "--target", "native", "--", fixtures / "mask-ground-truth.json",
                                             fixtures / "mask-baseline.json", "--iou-type", "segm", "--compare", fixtures / "mask-candidate.json", *flags]))
         assert paired["baseline"]["evaluator_version"] == paired["candidate"]["evaluator_version"] == expected_version

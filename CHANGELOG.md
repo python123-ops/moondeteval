@@ -2,6 +2,8 @@
 
 ## Unreleased (source checkout)
 
+- Index evaluation inputs once by image/category and skip empty groups while retaining global score ranking, empty-image counts and diagnostic ordering. Add bounded per-category mask IoU caches with exact on-demand fallback, optional public API budgets and `--max-iou-cache-pairs` in native/batch evaluation. Zero disables caching; the budget is not a process-memory limit. Existing report/schema and published release behavior are unchanged.
+
 - Add versioned gate-policy JSON round trips, native `--gate-policy` evaluation and `--check-gate-policy` preflight. Batch runs freeze and hash the shared configuration, retain its exact bytes, and reject policy changes before committing a result directory. The viewer verifies optional policy snapshots against both their digest and native rule metadata. Existing inline rules and report/index versions are unchanged.
 
 - Separate frozen prediction filenames from ground-truth and policy snapshots so valid model names such as `ground-truth` and `gate-policy` cannot overwrite those inputs.

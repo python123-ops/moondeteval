@@ -20,6 +20,31 @@ test "source consumer evaluates masks through public types and config" {
   assert_eq(report.summary().ap(), 1.0)
   assert_eq(report.iou_type(), "segm")
   assert_eq(report.pr_curves().length(), 2)
+  assert_eq(
+    @moondeteval.evaluate_masks_with_config(
+      dataset,
+      [prediction],
+      config,
+      max_iou_cache_pairs=0,
+    ).to_json_string(),
+    report.to_json_string(),
+  )
+  assert_eq(
+    @moondeteval.compare_mask_predictions_with_config(
+      dataset,
+      [prediction],
+      [],
+      config,
+      max_iou_cache_pairs=1,
+    ).to_json_string(),
+    @moondeteval.compare_mask_predictions_with_config(
+      dataset,
+      [prediction],
+      [],
+      config,
+      max_iou_cache_pairs=0,
+    ).to_json_string(),
+  )
 }
 
 ///|

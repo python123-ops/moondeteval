@@ -50,6 +50,7 @@ fn EvaluationInput::sizes(
 fn EvaluationInput::evaluate(
   self : EvaluationInput,
   config : @moondeteval.EvalConfig,
+  max_iou_cache_pairs : Int32,
 ) -> CliResult raise @moondeteval.EvalError {
   match self {
     Bbox(dataset, predictions, Some(other)) =>
@@ -63,12 +64,21 @@ fn EvaluationInput::evaluate(
     Segm(dataset, predictions, Some(other)) =>
       Paired(
         @moondeteval.compare_mask_predictions_with_config(
-          dataset, predictions, other, config,
+          dataset,
+          predictions,
+          other,
+          config,
+          max_iou_cache_pairs~,
         ),
       )
     Segm(dataset, predictions, None) =>
       Single(
-        @moondeteval.evaluate_masks_with_config(dataset, predictions, config),
+        @moondeteval.evaluate_masks_with_config(
+          dataset,
+          predictions,
+          config,
+          max_iou_cache_pairs~,
+        ),
       )
   }
 }

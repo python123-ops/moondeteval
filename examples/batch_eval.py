@@ -124,6 +124,8 @@ def parse_args(argv=None):
         parser.add_argument("--" + flag, action="store_true")
     for flag in ("max-input-bytes", "max-total-input-bytes", "max-records", "max-diagnostics", "max-report-bytes"):
         parser.add_argument("--" + flag, type=int)
+    parser.add_argument("--max-iou-cache-pairs", type=int,
+                        help="mask IoU pairs cached per category, 0 disables (default: CLI default); not a process memory limit")
     for flag in GATE_OPTIONS:
         parser.add_argument(flag, action=GateArgument, dest="gate_options")
     parser.add_argument("--undefined-gate", choices=("fail", "skip"))
@@ -143,6 +145,8 @@ def parse_args(argv=None):
 
 
 def run_batch(args):
+    if args.max_iou_cache_pairs is not None and not 0 <= args.max_iou_cache_pairs <= 16777216:
+        raise BatchError("--max-iou-cache-pairs requires an integer in [0,16777216]")
     gate_options = args.gate_options or []
     policy_path = args.gate_policy
     if policy_path and (gate_options or args.undefined_gate is not None):
@@ -181,6 +185,8 @@ def run_batch(args):
     prefix = [str(args.cli)] if args.cli else ["moon", "run", "cli", "--target", "native", "--"]
     # Omit the default bbox flag so older registry-installed bbox CLIs still work.
     flags = ["--iou-type", "segm"] if args.iou_type == "segm" else []
+    if args.max_iou_cache_pairs is not None:
+        flags += ["--max-iou-cache-pairs", str(args.max_iou_cache_pairs)]
     flags += ["--" + key.replace("_", "-") for key in ("diagnostics", "image_ranking", "pr_curves") if getattr(args, key)]
     for key in ("max_input_bytes", "max_total_input_bytes", "max_records", "max_diagnostics", "max_report_bytes"):
         value = getattr(args, key)

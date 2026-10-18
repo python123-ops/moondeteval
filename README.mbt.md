@@ -282,6 +282,22 @@ With `--output`, the CLI writes the JSON file and prints a one-line summary. It 
 
 For performance measurements, build the native CLI with `moon build cli --target native --release` and add `--timings`. Successful runs print `input`, `evaluation`, `serialization`, and `output` durations in microseconds to stderr while leaving the JSON on stdout unchanged. `input` includes reading, parsing, and input validation; `output` includes report-size validation and writing to stdout or the requested file. The durations exclude process startup. In particular, `--max-report-bytes` is checked after serialization, so a large diagnostic report can consume substantial memory before the limit rejects it.
 
+## Single-machine evaluation (source candidate)
+
+The evaluator indexes ground truths and detections once by category and image, and visits only image/category groups containing records. Empty images remain in report counts and image summaries. AP still uses the global score ranking; it is not an average of per-image or per-shard AP.
+
+Mask evaluation caches at most 262,144 IoU pairs per category by default. `evaluate_masks_with_config` and `compare_mask_predictions_with_config` accept the optional named argument `max_iou_cache_pairs`; the native CLI and batch tool accept `--max-iou-cache-pairs N`. Values are integers in `[0,16777216]`; `0` disables caching. Only complete matrices for up to 100 ranked detections per image/category are cached. A matrix that does not fit is computed on demand, without discarding detections or changing matching. Crowd overlap, stable score ties, area ranges and diagnostics retain their existing semantics. Bbox uses the same input index but does not allocate an overlap cache.
+
+The cache budget counts pairs, not input records or process memory. Each cached value occupies eight bytes, with additional array/index overhead. Inputs and output JSON are still materialized in memory. Start large jobs with summary reports; diagnostics and per-image results can substantially increase memory use. Increase the existing byte/record limits explicitly for larger inputs, measure with a native release build and `--timings`, and use an operating-system memory limit if a hard process limit is required.
+
+```sh
+moon build cli --target native --release
+# Replace the executable path with the build artifact on your platform.
+_build/native/release/build/cli/cli.exe ground-truth.json predictions.json --iou-type segm --max-input-bytes 536870912 --max-total-input-bytes 1073741824 --max-records 5000000 --max-iou-cache-pairs 262144 --timings --output report.json
+```
+
+These execution settings do not change the report's scientific configuration or schema. Batch replay commands retain an explicitly supplied cache budget; omitting the option preserves compatibility with the published bbox CLI. The cache option and mask APIs described here require the source candidate, not Mooncakes `0.1.0`.
+
 ## Library use
 
 ```moonbit nocheck
@@ -356,6 +372,7 @@ Verify a candidate archive with `python examples/consumer/archive_smoke.py --arc
 moon fmt --check
 moon check --target all --deny-warn
 moon test --target all --deny-warn
+python -m unittest examples/scale_test.py -v
 python examples/compare_demo.py
 python examples/yolo_manifest_demo.py
 python -m pip install numpy==1.26.4 pycocotools==2.0.7

@@ -18,6 +18,7 @@ fn help_text() -> String {
   "\n\nEvaluate COCO bbox/mask predictions or a YOLO bbox manifest against one ground-truth file.\n" +
   "\nInputs:\n  ground-truth.json            COCO ground truths\n  detections.json|manifest.json  COCO detections or YOLO manifest\n" +
   "\nOptions:\n  --iou-type bbox|segm          Evaluation geometry (default: bbox; segm requires COCO masks)\n  --prediction-format coco|yolo  Prediction input format (default: coco)\n  --compare OTHER.json          Compare a second prediction file\n  --compare-format coco|yolo     Second prediction format (default: coco)\n  --diagnostics                 Include matching decisions\n  --image-ranking               Include per-image results\n  --pr-curves                   Include precision-recall curves\n  --timings                     Print stage timings to stderr\n  --min-ap50 N                  Fail if AP50 is below N\n  --fail-on-warning             Fail on out-of-image warnings\n  --output PATH                 Write report to a new file\n  --max-input-bytes N           Limit each input file\n  --max-total-input-bytes N     Limit combined input size\n  --max-records N               Limit input records\n  --max-diagnostics N           Limit diagnostic entries\n  --max-report-bytes N          Limit report size\n  -h, --help                    Show this help\n" +
+  "\nMask execution:\n  --max-iou-cache-pairs N        Cache pairs per category (default: 262144; 0 disables; max: 16777216)\nThis limits mask overlap caching, not process memory; bbox does not cache overlaps.\n" +
   "\nExamples (from source checkout):\n  moon run cli --target native -- examples/ground-truth.json examples/detections.json\n  moon run cli --target native -- examples/yolo/ground-truth.json examples/yolo/manifest.json --prediction-format yolo\n" +
   "\nExit codes: 0 success; 2 invalid input or usage; 3 quality gate failure.\n" +
   "\nMetric gates (source candidate; fraction units, tolerance 1e-12):\n  --gate-policy POLICY.json      Load a reusable policy (exclusive with inline rules)\n  --check-gate-policy POLICY.json  Validate policy only: moondeteval --check-gate-policy FILE\n  --min-metric METRIC=VALUE      Minimum overall metric\n  --max-metric-drop METRIC=VALUE  Maximum baseline minus candidate (requires --compare)\n  --min-class-metric ID:METRIC=VALUE  Minimum category metric\n  --max-class-drop ID:METRIC=VALUE  Maximum category drop (requires --compare)\n  --undefined-gate fail|skip      Undefined metric behavior (default: fail)\nRepeat metric rules up to 1000 times. Metric gates cannot be combined with --min-ap50.\nAll skipped rules still fail. Failed gates retain complete reports.\n"
@@ -81,9 +82,36 @@ async fn main {
   let mut max_records = 100000
   let mut max_diagnostics = 100000
   let mut max_report_bytes = 67108864
+  let mut max_iou_cache_pairs = 262144
+  let mut seen_iou_cache_pairs = false
   let mut index = 3
   while index < arguments.length() {
     match arguments[index] {
+      "--max-iou-cache-pairs" => {
+        if seen_iou_cache_pairs || index + 1 >= arguments.length() {
+          fail_command(
+            "--max-iou-cache-pairs requires one integer in [0,16777216], once", 2,
+          )
+          return
+        }
+        let value = @string.parse_int(arguments[index + 1]) catch {
+          _ => {
+            fail_command(
+              "--max-iou-cache-pairs requires an integer in [0,16777216]", 2,
+            )
+            return
+          }
+        }
+        if value < 0 || value > 16777216 {
+          fail_command(
+            "--max-iou-cache-pairs requires an integer in [0,16777216]", 2,
+          )
+          return
+        }
+        max_iou_cache_pairs = value
+        seen_iou_cache_pairs = true
+        index += 2
+      }
       "--gate-policy" => {
         if gate_policy_path is Some(_) || index + 1 >= arguments.length() {
           fail_command("--gate-policy requires one policy file, once", 2)
@@ -456,7 +484,7 @@ async fn main {
       include_pr_curves~,
     )
     let evaluation_timer = @bench.monotonic_clock_start()
-    let evaluated = input.evaluate(config)
+    let evaluated = input.evaluate(config, max_iou_cache_pairs)
     let evaluation_us = @bench.monotonic_clock_end(evaluation_timer)
     let metric_gates = match gate_policy {
       Some(policy) => Some(evaluated.metric_gates(policy))

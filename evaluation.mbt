@@ -529,20 +529,6 @@ priv struct RankedDetection {
 }
 
 ///|
-priv struct RankedTruth {
-  truth : GroundTruth
-  order : Int32
-}
-
-///|
-priv struct PreparedImage {
-  image_id : Int32
-  truths : Array[RankedTruth]
-  all_truths : Array[GroundTruth]
-  candidates : Array[RankedDetection]
-}
-
-///|
 priv struct MatchRecord {
   score : Double
   order : Int32
@@ -609,86 +595,26 @@ fn record_before(left : MatchRecord, right : MatchRecord) -> Int32 {
 }
 
 ///|
-/// Group and rank once per category; threshold and area matching remain per curve.
-fn prepare_category(
-  dataset : Dataset,
-  detections : Array[RankedDetection],
-  category_id : Int32,
-) -> Array[PreparedImage] {
-  let truths_by_image : Map[Int32, Array[RankedTruth]] = Map([])
-  let all_truths_by_image : Map[Int32, Array[GroundTruth]] = Map([])
-  let detections_by_image : Map[Int32, Array[RankedDetection]] = Map([])
-  for order, truth in dataset.truths {
-    match all_truths_by_image.get(truth.image_id) {
-      Some(items) => items.push(truth)
-      None => all_truths_by_image[truth.image_id] = [truth]
-    }
-    if truth.category_id == category_id {
-      match truths_by_image.get(truth.image_id) {
-        Some(items) => items.push({ truth, order, })
-        None => truths_by_image[truth.image_id] = [{ truth, order, }]
-      }
-    }
-  }
-  for candidate in detections {
-    if candidate.detection.category_id == category_id {
-      match detections_by_image.get(candidate.detection.image_id) {
-        Some(items) => items.push(candidate)
-        None => detections_by_image[candidate.detection.image_id] = [candidate]
-      }
-    }
-  }
-  let images = dataset.images.copy()
-  images.sort_by(fn(left, right) {
-    if left.id < right.id {
-      -1
-    } else if left.id > right.id {
-      1
-    } else {
-      0
-    }
-  })
-  let prepared : Array[PreparedImage] = []
-  for image in images {
-    let truths = match truths_by_image.get(image.id) {
-      Some(items) => items
-      None => []
-    }
-    let candidates = match detections_by_image.get(image.id) {
-      Some(items) => items
-      None => []
-    }
-    candidates.sort_by(ranked_before)
-    let all_truths = match all_truths_by_image.get(image.id) {
-      Some(items) => items
-      None => []
-    }
-    prepared.push({ image_id: image.id, truths, all_truths, candidates, })
-  }
-  prepared
-}
-
-///|
 /// A read-only explanation of an unmatched, non-ignored detection.
 fn classify_false_positive(
-  all_truths : Array[GroundTruth],
+  group : PreparedImage,
+  detection_index : Int32,
   category_id : Int32,
-  detection : Detection,
   truths : Array[RankedTruth],
   used : Array[Bool],
   ignored : Array[Bool],
   threshold : Double,
   respect_explicit_ignore : Bool,
 ) -> String {
+  let detection = group.candidates[detection_index].detection
   for index in 0..<truths.length() {
-    let truth = truths[index].truth
     if used[index] &&
       !ignored[index] &&
-      instance_overlap(detection, truth, false) >= threshold {
+      group.overlap(detection_index, truths[index]) >= threshold {
       return "duplicate"
     }
   }
-  for truth in all_truths {
+  for truth in group.all_truths {
     if truth.category_id != category_id &&
       !truth.iscrowd &&
       (!respect_explicit_ignore || !truth.ignore) &&
@@ -697,8 +623,7 @@ fn classify_false_positive(
     }
   }
   for index in 0..<truths.length() {
-    let truth = truths[index].truth
-    if !ignored[index] && instance_overlap(detection, truth, false) >= 0.1 {
+    if !ignored[index] && group.overlap(detection_index, truths[index]) >= 0.1 {
       return "localization"
     }
   }
@@ -765,11 +690,7 @@ fn evaluate_curve(
         if best >= 0 && !ignored[best] && ignored[truth_index] {
           break
         }
-        let current = instance_overlap(
-          candidate.detection,
-          truth,
-          truth.iscrowd,
-        )
+        let current = group.overlap(detection_index, truths[truth_index])
         if current < best_overlap {
           continue
         }
@@ -806,13 +727,7 @@ fn evaluate_curve(
             "detection_area"
           } else {
             classify_false_positive(
-              group.all_truths,
-              category_id,
-              candidate.detection,
-              truths,
-              used,
-              ignored,
-              threshold,
+              group, detection_index, category_id, truths, used, ignored, threshold,
               respect_explicit_ignore,
             )
           }
@@ -1137,7 +1052,9 @@ fn evaluate_internal(
   predictions : Array[Detection],
   config : EvalConfig,
   iou_type~ : String = "bbox",
+  max_iou_cache_pairs~ : Int32 = 0,
 ) -> EvaluationReport raise EvalError {
+  validate_iou_cache_limit(max_iou_cache_pairs)
   if iou_type == "bbox" && config.ignore_policy == "coco_segm" {
     raise InvalidConfig("coco_segm policy requires evaluate_masks")
   }
@@ -1222,8 +1139,9 @@ fn evaluate_internal(
   let ar_small : Array[Double] = []
   let ar_medium : Array[Double] = []
   let ar_large : Array[Double] = []
+  let indexed = index_evaluation_inputs(dataset, detections)
   for category in dataset.categories {
-    let prepared = prepare_category(dataset, detections, category.id)
+    let prepared = prepare_category(indexed, category.id, max_iou_cache_pairs)
     let metrics = metrics_for_category(
       prepared,
       category.id,

@@ -191,11 +191,16 @@ pub fn evaluate_masks(
 ///|
 /// Optional diagnostics and PR curves use mask overlap. COCO default ignore
 /// handling uses iscrowd; respect_explicit remains an opt-in extension.
+/// max_iou_cache_pairs bounds cached DT/GT pairs per category, in [0,16777216].
+/// Zero disables caching. Oversized matrices use exact on-demand overlap;
+/// this execution setting does not bound total process memory or change metrics.
 pub fn evaluate_masks_with_config(
   dataset : MaskDataset,
   predictions : Array[MaskDetection],
   config : EvalConfig,
+  max_iou_cache_pairs~ : Int32 = 262144,
 ) -> EvaluationReport raise EvalError {
+  validate_iou_cache_limit(max_iou_cache_pairs)
   let images : Map[Int32, Image] = Map([])
   let categories : Map[Int32, Bool] = Map([])
   for image in dataset.value.images {
@@ -225,6 +230,7 @@ pub fn evaluate_masks_with_config(
     predictions.map(fn(item) { item.value }),
     mask_config,
     iou_type="segm",
+    max_iou_cache_pairs~,
   )
 }
 
@@ -243,14 +249,16 @@ pub fn compare_mask_predictions(
 }
 
 ///|
+/// Both evaluations use the same per-category cache budget, sequentially.
 pub fn compare_mask_predictions_with_config(
   dataset : MaskDataset,
   baseline : Array[MaskDetection],
   candidate : Array[MaskDetection],
   config : EvalConfig,
+  max_iou_cache_pairs~ : Int32 = 262144,
 ) -> ComparisonReport raise EvalError {
   compare_reports(
-    evaluate_masks_with_config(dataset, baseline, config),
-    evaluate_masks_with_config(dataset, candidate, config),
+    evaluate_masks_with_config(dataset, baseline, config, max_iou_cache_pairs~),
+    evaluate_masks_with_config(dataset, candidate, config, max_iou_cache_pairs~),
   )
 }
