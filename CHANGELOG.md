@@ -4,6 +4,7 @@
 
 - Add an independent Mooncakes `0.2.0` native CLI check covering bbox and mask/polygon batches with mixed gate outcomes, complete report replay, hashes, invalid inputs and preserved outputs. Import the same generated folders in desktop and mobile viewer tests, including changed-report rejection. Run the installed-release workflow on Linux and Windows before deploying Pages.
 - Verify the deployed Pages commit, three demo reports and public resources after deployment, with bounded retries for stale content and tests for incorrect metrics, hashes and project-path links.
+- Escape non-ASCII characters in the integration runner's console JSON so Windows consoles can print Unicode workspace paths. Saved reports and evidence retain UTF-8; CI exercises ASCII console output explicitly.
 
 ## 0.2.0 — 2026-10-18
 

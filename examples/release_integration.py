@@ -206,7 +206,7 @@ def verify(output, version):
         result["finished_at_utc"] = datetime.now(timezone.utc).isoformat()
         (output / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({"status": result["status"], "version": version,
-                      "result": str(output / "result.json"), "batches": result["batches"]}, ensure_ascii=False))
+                      "result": str(output / "result.json"), "batches": result["batches"]}, ensure_ascii=True))
 
 
 def main():
