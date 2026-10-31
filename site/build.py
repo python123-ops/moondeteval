@@ -25,7 +25,17 @@ def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def build(output):
+def source_state(require_clean=False):
+    status = subprocess.check_output(
+        ["git", "status", "--porcelain=v1", "--untracked-files=all"], cwd=ROOT, text=True)
+    if require_clean and status:
+        raise ValueError("Site publication requires a clean checkout:\n" + status)
+    return {"source_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
+            "source_modified": bool(status)}
+
+
+def build(output, require_clean=False):
+    source_snapshot = source_state(require_clean)
     output = output.resolve()
     if output == ROOT or (ROOT in output.parents and ROOT / "_build" not in output.parents):
         raise ValueError("Site output must be inside _build or outside the source checkout")
@@ -35,10 +45,7 @@ def build(output):
         path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / source, path)
     (output / ".nojekyll").write_text("", encoding="utf-8")
-    manifest = {"schema_version": "1", "synthetic": True,
-                "source_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
-                "source_modified": bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT)),
-                "demos": {}}
+    manifest = {"schema_version": "1", "synthetic": True, **source_snapshot, "demos": {}}
     for name, (gt, baseline, candidate, geometry, metric, expected_left, expected_right) in DEMOS.items():
         inputs = ["examples/" + value for value in (gt, baseline, candidate)]
         command = ["moon", "run", "cli", "--target", "native", "--", inputs[0], inputs[1],
@@ -67,6 +74,8 @@ def build(output):
                                    "iou_type": geometry, "metric": metric,
                                    "baseline": left, "candidate": right, "expected_exit_code": expected_exit,
                                    "inputs": {path: sha(ROOT / path) for path in inputs}, "command": command}
+    if source_state(require_clean) != source_snapshot:
+        raise ValueError("Source checkout changed during site generation")
     (output / "demos" / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     expected = set(ASSETS) | {".nojekyll", "demos/manifest.json"} | {"demos/" + name + ".json" for name in DEMOS}
     actual = {path.relative_to(output).as_posix() for path in output.rglob("*") if path.is_file()}
@@ -78,4 +87,6 @@ def build(output):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=ROOT / "_build" / "site")
-    build(parser.parse_args().output)
+    parser.add_argument("--require-clean", action="store_true", help="reject uncommitted files before generating a deployment")
+    args = parser.parse_args()
+    build(args.output, args.require_clean)

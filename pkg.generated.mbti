@@ -8,7 +8,7 @@ import {
 // Values
 pub fn compare_mask_predictions(MaskDataset, Array[MaskDetection], Array[MaskDetection]) -> ComparisonReport raise EvalError
 
-pub fn compare_mask_predictions_with_config(MaskDataset, Array[MaskDetection], Array[MaskDetection], EvalConfig, max_iou_cache_pairs? : Int) -> ComparisonReport raise EvalError
+pub fn compare_mask_predictions_with_config(MaskDataset, Array[MaskDetection], Array[MaskDetection], EvalConfig, max_iou_cache_pairs? : Int32) -> ComparisonReport raise EvalError
 
 pub fn compare_predictions(Dataset, Array[Detection], Array[Detection]) -> ComparisonReport raise EvalError
 
@@ -18,7 +18,7 @@ pub fn evaluate(Dataset, Array[Detection]) -> EvaluationReport raise EvalError
 
 pub fn evaluate_masks(MaskDataset, Array[MaskDetection]) -> EvaluationReport raise EvalError
 
-pub fn evaluate_masks_with_config(MaskDataset, Array[MaskDetection], EvalConfig, max_iou_cache_pairs? : Int) -> EvaluationReport raise EvalError
+pub fn evaluate_masks_with_config(MaskDataset, Array[MaskDetection], EvalConfig, max_iou_cache_pairs? : Int32) -> EvaluationReport raise EvalError
 
 pub fn evaluate_with_config(Dataset, Array[Detection], EvalConfig) -> EvaluationReport raise EvalError
 
@@ -36,9 +36,9 @@ pub fn parse_coco_mask_detections_with_dataset(String, MaskDataset) -> Array[Mas
 
 pub fn parse_coco_rle(String) -> CocoRle raise EvalError
 
-pub fn parse_coco_segmentation(String, Int, Int) -> CocoRle raise EvalError
+pub fn parse_coco_segmentation(String, Int32, Int32) -> CocoRle raise EvalError
 
-pub fn parse_yolo_detections(String, Dataset, Int, Array[Int], first_detection_id? : Int) -> Array[Detection] raise EvalError
+pub fn parse_yolo_detections(String, Dataset, Int32, Array[Int32], first_detection_id? : Int32) -> Array[Detection] raise EvalError
 
 pub fn parse_yolo_manifest(String, Dataset) -> YoloManifest raise EvalError
 
@@ -68,50 +68,50 @@ pub fn Box::to_repr(Self) -> @debug.Repr
 pub fn Box::to_xywh(Self) -> (Double, Double, Double, Double)
 
 pub struct Category {
-  id : Int
+  id : Int32
   name : String
 } derive(Eq, @debug.Debug)
 pub fn Category::equal(Self, Self) -> Bool
-pub fn Category::id(Self) -> Int
+pub fn Category::id(Self) -> Int32
 pub fn Category::name(Self) -> String
-pub fn Category::new(Int, String) -> Self raise EvalError
+pub fn Category::new(Int32, String) -> Self raise EvalError
 pub fn Category::not_equal(Self, Self) -> Bool
 pub fn Category::to_repr(Self) -> @debug.Repr
 
 pub struct ClassComparison {
-  category_id : Int
+  category_id : Int32
   metrics : Array[MetricChange]
 } derive(ToJson)
-pub fn ClassComparison::category_id(Self) -> Int
+pub fn ClassComparison::category_id(Self) -> Int32
 pub fn ClassComparison::metrics(Self) -> Array[MetricChange]
 pub fn ClassComparison::to_json(Self) -> Json
 
 pub struct ClassMetrics {
-  category_id : Int
+  category_id : Int32
   metrics : Metrics
 } derive(ToJson)
-pub fn ClassMetrics::category_id(Self) -> Int
+pub fn ClassMetrics::category_id(Self) -> Int32
 pub fn ClassMetrics::metrics(Self) -> Metrics
 pub fn ClassMetrics::to_json(Self) -> Json
 
 pub struct CocoRle {
-  height : Int
-  width : Int
-  counts : Array[Int]
-  foreground_area : Int
+  height : Int32
+  width : Int32
+  counts : Array[Int32]
+  foreground_area : Int32
 } derive(Eq, @debug.Debug)
-pub fn CocoRle::area(Self) -> Int
+pub fn CocoRle::area(Self) -> Int32
 pub fn CocoRle::crowd_iou(Self, Self) -> Double raise EvalError
 pub fn CocoRle::equal(Self, Self) -> Bool
-pub fn CocoRle::from_compressed(Int, Int, String) -> Self raise EvalError
-pub fn CocoRle::from_polygons(Int, Int, Array[Array[Double]]) -> Self raise EvalError
-pub fn CocoRle::height(Self) -> Int
+pub fn CocoRle::from_compressed(Int32, Int32, String) -> Self raise EvalError
+pub fn CocoRle::from_polygons(Int32, Int32, Array[Array[Double]]) -> Self raise EvalError
+pub fn CocoRle::height(Self) -> Int32
 pub fn CocoRle::iou(Self, Self) -> Double raise EvalError
-pub fn CocoRle::new(Int, Int, Array[Int]) -> Self raise EvalError
+pub fn CocoRle::new(Int32, Int32, Array[Int32]) -> Self raise EvalError
 pub fn CocoRle::not_equal(Self, Self) -> Bool
 pub fn CocoRle::to_compressed(Self) -> String
 pub fn CocoRle::to_repr(Self) -> @debug.Repr
-pub fn CocoRle::width(Self) -> Int
+pub fn CocoRle::width(Self) -> Int32
 
 pub struct ComparisonReport {
   schema_version : String
@@ -141,19 +141,19 @@ pub fn Dataset::new(Array[Image], Array[Category], Array[GroundTruth]) -> Self r
 pub fn Dataset::truths(Self) -> Array[GroundTruth]
 
 pub struct Detection {
-  id : Int
-  image_id : Int
-  category_id : Int
+  id : Int32
+  image_id : Int32
+  category_id : Int32
   bbox : Box
   mask : CocoRle?
   score : Double
 } derive(Eq, @debug.Debug)
 pub fn Detection::bbox(Self) -> Box
-pub fn Detection::category_id(Self) -> Int
+pub fn Detection::category_id(Self) -> Int32
 pub fn Detection::equal(Self, Self) -> Bool
-pub fn Detection::id(Self) -> Int
-pub fn Detection::image_id(Self) -> Int
-pub fn Detection::new(Int, Int, Int, Box, Double) -> Self raise EvalError
+pub fn Detection::id(Self) -> Int32
+pub fn Detection::image_id(Self) -> Int32
+pub fn Detection::new(Int32, Int32, Int32, Box, Double) -> Self raise EvalError
 pub fn Detection::not_equal(Self, Self) -> Bool
 pub fn Detection::score(Self) -> Double
 pub fn Detection::to_repr(Self) -> @debug.Repr
@@ -207,7 +207,7 @@ pub impl ToJson for EvaluationReport
 pub struct GateCheck {
   kind : String
   metric : String
-  category_id : Int?
+  category_id : Int32?
   threshold : Double
   baseline : Double?
   candidate : Double?
@@ -217,7 +217,7 @@ pub struct GateCheck {
 }
 pub fn GateCheck::baseline(Self) -> Double?
 pub fn GateCheck::candidate(Self) -> Double?
-pub fn GateCheck::category_id(Self) -> Int?
+pub fn GateCheck::category_id(Self) -> Int32?
 pub fn GateCheck::drop(Self) -> Double?
 pub fn GateCheck::kind(Self) -> String
 pub fn GateCheck::metric(Self) -> String
@@ -257,20 +257,20 @@ pub struct GateRule {
   kind : String
   metric : String
   threshold : Double
-  category_id : Int?
+  category_id : Int32?
 } derive(ToJson)
-pub fn GateRule::category_id(Self) -> Int?
+pub fn GateRule::category_id(Self) -> Int32?
 pub fn GateRule::kind(Self) -> String
-pub fn GateRule::max_drop(String, Double, category_id? : Int) -> Self raise EvalError
+pub fn GateRule::max_drop(String, Double, category_id? : Int32) -> Self raise EvalError
 pub fn GateRule::metric(Self) -> String
-pub fn GateRule::minimum(String, Double, category_id? : Int) -> Self raise EvalError
+pub fn GateRule::minimum(String, Double, category_id? : Int32) -> Self raise EvalError
 pub fn GateRule::threshold(Self) -> Double
 pub fn GateRule::to_json(Self) -> Json
 
 pub struct GroundTruth {
   id : Int64
-  image_id : Int
-  category_id : Int
+  image_id : Int32
+  category_id : Int32
   bbox : Box
   mask : CocoRle?
   area : Double
@@ -279,67 +279,67 @@ pub struct GroundTruth {
 } derive(Eq, @debug.Debug)
 pub fn GroundTruth::area(Self) -> Double
 pub fn GroundTruth::bbox(Self) -> Box
-pub fn GroundTruth::category_id(Self) -> Int
+pub fn GroundTruth::category_id(Self) -> Int32
 pub fn GroundTruth::equal(Self, Self) -> Bool
 pub fn GroundTruth::id(Self) -> Int64
 pub fn GroundTruth::ignore(Self) -> Bool
-pub fn GroundTruth::image_id(Self) -> Int
+pub fn GroundTruth::image_id(Self) -> Int32
 pub fn GroundTruth::iscrowd(Self) -> Bool
-pub fn GroundTruth::new(Int64, Int, Int, Box, area~ : Double, iscrowd? : Bool, ignore? : Bool) -> Self raise EvalError
+pub fn GroundTruth::new(Int64, Int32, Int32, Box, area~ : Double, iscrowd? : Bool, ignore? : Bool) -> Self raise EvalError
 pub fn GroundTruth::not_equal(Self, Self) -> Bool
 pub fn GroundTruth::to_repr(Self) -> @debug.Repr
 
 pub struct Image {
-  id : Int
-  width : Int
-  height : Int
+  id : Int32
+  width : Int32
+  height : Int32
 } derive(Eq, @debug.Debug)
 pub fn Image::equal(Self, Self) -> Bool
-pub fn Image::height(Self) -> Int
-pub fn Image::id(Self) -> Int
-pub fn Image::new(Int, Int, Int) -> Self raise EvalError
+pub fn Image::height(Self) -> Int32
+pub fn Image::id(Self) -> Int32
+pub fn Image::new(Int32, Int32, Int32) -> Self raise EvalError
 pub fn Image::not_equal(Self, Self) -> Bool
 pub fn Image::to_repr(Self) -> @debug.Repr
-pub fn Image::width(Self) -> Int
+pub fn Image::width(Self) -> Int32
 
 pub struct ImageChange {
-  image_id : Int
-  baseline_errors : Int
-  candidate_errors : Int
-  error_delta : Int
+  image_id : Int32
+  baseline_errors : Int32
+  candidate_errors : Int32
+  error_delta : Int32
 } derive(ToJson)
-pub fn ImageChange::baseline_errors(Self) -> Int
-pub fn ImageChange::candidate_errors(Self) -> Int
-pub fn ImageChange::error_delta(Self) -> Int
-pub fn ImageChange::image_id(Self) -> Int
+pub fn ImageChange::baseline_errors(Self) -> Int32
+pub fn ImageChange::candidate_errors(Self) -> Int32
+pub fn ImageChange::error_delta(Self) -> Int32
+pub fn ImageChange::image_id(Self) -> Int32
 pub fn ImageChange::to_json(Self) -> Json
 
 pub struct ImageSummary {
-  image_id : Int
-  tp : Int
-  fp : Int
-  fn_count : Int
-  ignored : Int
+  image_id : Int32
+  tp : Int32
+  fp : Int32
+  fn_count : Int32
+  ignored : Int32
 } derive(ToJson)
-pub fn ImageSummary::fn_count(Self) -> Int
-pub fn ImageSummary::fp(Self) -> Int
-pub fn ImageSummary::ignored(Self) -> Int
-pub fn ImageSummary::image_id(Self) -> Int
+pub fn ImageSummary::fn_count(Self) -> Int32
+pub fn ImageSummary::fp(Self) -> Int32
+pub fn ImageSummary::ignored(Self) -> Int32
+pub fn ImageSummary::image_id(Self) -> Int32
 pub fn ImageSummary::to_json(Self) -> Json
-pub fn ImageSummary::tp(Self) -> Int
+pub fn ImageSummary::tp(Self) -> Int32
 
 pub struct InputCounts {
-  images : Int
-  categories : Int
-  ground_truths : Int
-  detections : Int
-  evaluated_detections : Int
+  images : Int32
+  categories : Int32
+  ground_truths : Int32
+  detections : Int32
+  evaluated_detections : Int32
 } derive(ToJson)
-pub fn InputCounts::categories(Self) -> Int
-pub fn InputCounts::detections(Self) -> Int
-pub fn InputCounts::evaluated_detections(Self) -> Int
-pub fn InputCounts::ground_truths(Self) -> Int
-pub fn InputCounts::images(Self) -> Int
+pub fn InputCounts::categories(Self) -> Int32
+pub fn InputCounts::detections(Self) -> Int32
+pub fn InputCounts::evaluated_detections(Self) -> Int32
+pub fn InputCounts::ground_truths(Self) -> Int32
+pub fn InputCounts::images(Self) -> Int32
 pub fn InputCounts::to_json(Self) -> Json
 
 pub struct MaskDataset {
@@ -353,39 +353,39 @@ pub fn MaskDataset::truths(Self) -> Array[MaskGroundTruth]
 pub struct MaskDetection {
   value : Detection
 }
-pub fn MaskDetection::category_id(Self) -> Int
-pub fn MaskDetection::id(Self) -> Int
-pub fn MaskDetection::image_id(Self) -> Int
+pub fn MaskDetection::category_id(Self) -> Int32
+pub fn MaskDetection::id(Self) -> Int32
+pub fn MaskDetection::image_id(Self) -> Int32
 pub fn MaskDetection::mask(Self) -> CocoRle
-pub fn MaskDetection::new(Int, Int, Int, CocoRle, Double) -> Self raise EvalError
+pub fn MaskDetection::new(Int32, Int32, Int32, CocoRle, Double) -> Self raise EvalError
 pub fn MaskDetection::score(Self) -> Double
 
 pub struct MaskGroundTruth {
   value : GroundTruth
 }
 pub fn MaskGroundTruth::area(Self) -> Double
-pub fn MaskGroundTruth::category_id(Self) -> Int
+pub fn MaskGroundTruth::category_id(Self) -> Int32
 pub fn MaskGroundTruth::id(Self) -> Int64
 pub fn MaskGroundTruth::ignore(Self) -> Bool
-pub fn MaskGroundTruth::image_id(Self) -> Int
+pub fn MaskGroundTruth::image_id(Self) -> Int32
 pub fn MaskGroundTruth::iscrowd(Self) -> Bool
 pub fn MaskGroundTruth::mask(Self) -> CocoRle
-pub fn MaskGroundTruth::new(Int64, Int, Int, CocoRle, area~ : Double, iscrowd? : Bool, ignore? : Bool) -> Self raise EvalError
+pub fn MaskGroundTruth::new(Int64, Int32, Int32, CocoRle, area~ : Double, iscrowd? : Bool, ignore? : Bool) -> Self raise EvalError
 
 pub struct MatchDiagnostic {
   iou_threshold : Double
-  image_id : Int
-  category_id : Int
-  detection_id : Int?
+  image_id : Int32
+  category_id : Int32
+  detection_id : Int32?
   ground_truth_id : Int64?
   iou : Double
   status : String
   reason : String
 }
-pub fn MatchDiagnostic::category_id(Self) -> Int
-pub fn MatchDiagnostic::detection_id(Self) -> Int?
+pub fn MatchDiagnostic::category_id(Self) -> Int32
+pub fn MatchDiagnostic::detection_id(Self) -> Int32?
 pub fn MatchDiagnostic::ground_truth_id(Self) -> Int64?
-pub fn MatchDiagnostic::image_id(Self) -> Int
+pub fn MatchDiagnostic::image_id(Self) -> Int32
 pub fn MatchDiagnostic::iou(Self) -> Double
 pub fn MatchDiagnostic::iou_threshold(Self) -> Double
 pub fn MatchDiagnostic::reason(Self) -> String
@@ -436,14 +436,14 @@ pub fn Metrics::to_json(Self) -> Json
 pub fn Metrics::to_repr(Self) -> @debug.Repr
 
 pub struct PrecisionRecallCurve {
-  category_id : Int
+  category_id : Int32
   iou_threshold : Double
   precision : Array[Double]
   max_recall : Double
   ap : Double
 } derive(ToJson)
 pub fn PrecisionRecallCurve::ap(Self) -> Double
-pub fn PrecisionRecallCurve::category_id(Self) -> Int
+pub fn PrecisionRecallCurve::category_id(Self) -> Int32
 pub fn PrecisionRecallCurve::iou_threshold(Self) -> Double
 pub fn PrecisionRecallCurve::max_recall(Self) -> Double
 pub fn PrecisionRecallCurve::precision(Self) -> Array[Double]
@@ -452,12 +452,12 @@ pub fn PrecisionRecallCurve::to_json(Self) -> Json
 pub struct QualityWarning {
   source : String
   record_id : Int64
-  image_id : Int
-  category_id : Int
+  image_id : Int32
+  category_id : Int32
   kind : String
 }
-pub fn QualityWarning::category_id(Self) -> Int
-pub fn QualityWarning::image_id(Self) -> Int
+pub fn QualityWarning::category_id(Self) -> Int32
+pub fn QualityWarning::image_id(Self) -> Int32
 pub fn QualityWarning::kind(Self) -> String
 pub fn QualityWarning::record_id(Self) -> Int64
 pub fn QualityWarning::source(Self) -> String
@@ -465,17 +465,17 @@ pub fn QualityWarning::to_json(Self) -> Json
 pub impl ToJson for QualityWarning
 
 pub struct YoloFile {
-  image_id : Int
+  image_id : Int32
   file : String
 }
 pub fn YoloFile::file(Self) -> String
-pub fn YoloFile::image_id(Self) -> Int
+pub fn YoloFile::image_id(Self) -> Int32
 
 pub struct YoloManifest {
-  category_ids : Array[Int]
+  category_ids : Array[Int32]
   images : Array[YoloFile]
 }
-pub fn YoloManifest::category_ids(Self) -> Array[Int]
+pub fn YoloManifest::category_ids(Self) -> Array[Int32]
 pub fn YoloManifest::images(Self) -> Array[YoloFile]
 
 // Type aliases

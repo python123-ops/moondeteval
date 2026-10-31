@@ -89,7 +89,9 @@ jobs:
       - name: Verify candidate archive independently
         run: python examples/consumer/archive_smoke.py --archive _build/publish/python123-ops-moondeteval-0.2.0.zip
       - name: Generate static product site and CLI reports
-        run: python site/build.py
+        run: |
+          git status --porcelain=v1 --untracked-files=all
+          python site/build.py --require-clean
       - name: Install browser test tools
         run: |
           npm install --prefix _build/browser --no-save --package-lock=false playwright@1.62.1
@@ -100,6 +102,8 @@ jobs:
         run: node --test site/browser.test.cjs
       - name: Test deployment verification and stale-content rejection
         run: python -m unittest discover -s site -p verify_deployment_test.py -v
+      - name: Test clean-source publication checks
+        run: python -m unittest discover -s site -p build_test.py -v
       - name: Upload product site
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v4

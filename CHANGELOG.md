@@ -5,6 +5,7 @@
 - Add an independent Mooncakes `0.2.0` native CLI check covering bbox and mask/polygon batches with mixed gate outcomes, complete report replay, hashes, invalid inputs and preserved outputs. Import the same generated folders in desktop and mobile viewer tests, including changed-report rejection. Run the installed-release workflow on Linux and Windows before deploying Pages.
 - Verify the deployed Pages commit, three demo reports and public resources after deployment, with bounded retries for stale content and tests for incorrect metrics, hashes and project-path links.
 - Escape non-ASCII characters in the integration runner's console JSON so Windows consoles can print Unicode workspace paths. Saved reports and evidence retain UTF-8; CI exercises ASCII console output explicitly.
+- Regenerate interface files with MoonBit 0.10.18's explicit `Int32` spelling. Require a clean source checkout before deployment builds, so generated-interface changes are caught before publication; keep draft builds available with their actual source-state marker.
 
 ## 0.2.0 — 2026-10-18
 

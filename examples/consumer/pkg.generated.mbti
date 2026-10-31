@@ -9,9 +9,9 @@ import {
 }
 
 // Values
-pub fn adapt_mbmot_frame(Int, Int, Array[@mbmot.Detection]) -> Array[@moondeteval.Detection] raise @moondeteval.EvalError
+pub fn adapt_mbmot_frame(Int32, Int32, Array[@mbmot.Detection]) -> Array[@moondeteval.Detection] raise @moondeteval.EvalError
 
-pub fn adapt_mbmot_frames(Array[(Int, Array[@mbmot.Detection])], Array[(Int, Int)], Int) -> Array[@moondeteval.Detection] raise @moondeteval.EvalError
+pub fn adapt_mbmot_frames(Array[(Int32, Array[@mbmot.Detection])], Array[(Int32, Int32)], Int32) -> Array[@moondeteval.Detection] raise @moondeteval.EvalError
 
 pub fn geometry_rect_to_box(@core.Rect2) -> @moondeteval.Box raise @moondeteval.EvalError
 
