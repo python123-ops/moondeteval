@@ -58,7 +58,7 @@ def build(output, require_clean=False):
         assert result.returncode == expected_exit, (name, result.returncode, result.stderr)
         report = json.loads(result.stdout)
         assert report["schema_version"] == "0.1.0"
-        assert report["baseline"]["evaluator_version"] == report["candidate"]["evaluator_version"] == "0.2.0"
+        assert report["baseline"]["evaluator_version"] == report["candidate"]["evaluator_version"] == "0.2.1"
         left, right = report["baseline"]["summary"][metric], report["candidate"]["summary"][metric]
         assert abs(left - expected_left) < 1e-9 and abs(right - expected_right) < 1e-9, (name, left, right)
         if name == "polygon":
@@ -81,7 +81,7 @@ def build(output, require_clean=False):
     actual = {path.relative_to(output).as_posix() for path in output.rglob("*") if path.is_file()}
     assert actual == expected, ("Unexpected site contents", actual ^ expected)
     assert not any(path.is_symlink() for path in output.rglob("*"))
-    print(json.dumps({"files": len(actual), "synthetic_demos": list(DEMOS), "evaluator_version": "0.2.0"}))
+    print(json.dumps({"files": len(actual), "synthetic_demos": list(DEMOS), "evaluator_version": "0.2.1"}))
 
 
 if __name__ == "__main__":

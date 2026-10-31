@@ -54,6 +54,45 @@ test('real comparison keeps CLI deltas, image regression order, and diagnostic f
   assert.ok(first.rows.length <= 2);
 });
 
+test('comparison values, undefined deltas and category rows must match both native evaluations', () => {
+  const text = report(['--compare', 'examples/compare-candidate.json']);
+  for (const change of [
+    v => v.metrics[1].candidate = 1,
+    v => v.metrics[1].delta = 0,
+    v => v.metrics[1].delta = null,
+    v => v.metrics.push(v.metrics[0]),
+    v => v.metrics[1].name = v.metrics[0].name,
+    v => v.metrics.find(row => row.baseline === null).baseline = -1,
+    v => v.classes[0].metrics[1].delta = 0,
+    v => v.classes[0].metrics[1].candidate = 1,
+    v => v.classes[0].category_id = 999,
+    v => v.classes.pop(),
+    v => v.classes.push(v.classes[0]),
+    v => v.candidate.config.iou_thresholds = [.5],
+    v => v.candidate.counts.images += 1,
+    v => v.candidate.evaluator_version = 'different',
+  ]) {
+    const changed = JSON.parse(text); change(changed);
+    assert.throws(() => api.parseReport(JSON.stringify(changed)), /比较|类别|配置|计数|版本/);
+  }
+  const valid = JSON.parse(text);
+  valid.metrics.reverse(); valid.classes.reverse();
+  for (const row of valid.classes) row.metrics.reverse();
+  assert.equal(api.overallMetrics(api.parseReport(JSON.stringify(valid))).find(row => row.name === 'ap50').delta, -.75);
+});
+
+test('single reports reject invalid summary and class values while preserving signed category IDs', () => {
+  const text = report();
+  for (const change of [v => v.summary.ap = 1.1, v => v.summary.ap = -2,
+    v => v.classes[0].metrics.ap = null, v => v.classes[0].metrics.ap = 2,
+    v => v.classes.push(v.classes[0]), v => v.classes[0].category_id = '1']) {
+    const changed = JSON.parse(text); change(changed);
+    assert.throws(() => api.parseReport(JSON.stringify(changed)), /指标|数值|类别/);
+  }
+  const valid = JSON.parse(text); valid.classes[0].category_id = -2147483648;
+  assert.ok(api.classIds(api.parseReport(JSON.stringify(valid))).includes(-2147483648));
+});
+
 test('bad JSON and incompatible or incomplete reports fail without partial model', () => {
   assert.throws(() => api.parseReport('{'), /JSON 解析失败/);
   const base = JSON.parse(report());

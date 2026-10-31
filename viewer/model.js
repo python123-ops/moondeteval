@@ -20,6 +20,26 @@
     return value;
   }
 
+  function metricValue(value) {
+    return Number.isFinite(value) && (value === -1 || (value >= 0 && value <= 1));
+  }
+
+  function comparisonMetrics(rows, baseline, candidate, name) {
+    if (!Array.isArray(rows) || rows.length !== METRICS.length) throw new Error(`${name} 必须包含 12 项比较指标`);
+    const seen = new Set();
+    for (const row of rows) {
+      if (!object(row) || !METRICS.includes(row.name) || seen.has(row.name)) throw new Error(`${name} 比较指标缺失或重复`);
+      seen.add(row.name);
+      const left = baseline[row.name] === -1 ? null : baseline[row.name];
+      const right = candidate[row.name] === -1 ? null : candidate[row.name];
+      if (row.baseline !== left || row.candidate !== right) throw new Error(`${name} 比较数值与评测摘要不同`);
+      const delta = left === null || right === null ? null : right - left;
+      if (delta === null ? row.delta !== null : !Number.isFinite(row.delta) || Math.abs(row.delta - delta) > 1e-12) {
+        throw new Error(`${name} 比较差值与两侧评测不同`);
+      }
+    }
+  }
+
   function safeIds(rows, fields, name) {
     for (const row of rows) {
       if (!object(row)) continue;
@@ -99,8 +119,8 @@
       throw new Error(`${name}.iou_type 必须是 bbox 或 segm`);
     }
     for (const metric of METRICS) {
-      if (!Number.isFinite(value.summary[metric])) {
-        throw new Error(`${name}.summary.${metric} 缺失或不是有限数字`);
+      if (!metricValue(value.summary[metric])) {
+        throw new Error(`${name}.summary.${metric} 指标数值无效`);
       }
     }
     arrayField(value.classes, `${name}.classes`);
@@ -111,6 +131,14 @@
     safeIds(value.image_summaries, ["image_id"], `${name}.image_summaries`);
     safeIds(value.pr_curves, ["category_id"], `${name}.pr_curves`);
     safeIds(value.diagnostics, ["image_id", "category_id", "detection_id", "ground_truth_id"], `${name}.diagnostics`);
+    const categories = new Set();
+    for (const row of value.classes) {
+      if (!object(row) || !Number.isInteger(row.category_id) || row.category_id < -2147483648 || row.category_id > 2147483647 ||
+          categories.has(row.category_id) || !object(row.metrics) || !METRICS.every(key => metricValue(row.metrics[key]))) {
+        throw new Error(`${name} 类别或逐类指标数值无效`);
+      }
+      categories.add(row.category_id);
+    }
     bindGates(value.metric_gates, value);
     return value;
   }
@@ -133,13 +161,29 @@
       if ((value.baseline.iou_type || "bbox") !== (value.candidate.iou_type || "bbox")) {
         throw new Error("双模型报告的评测类型不同，不能比较 bbox 与 mask AP");
       }
+      if (value.baseline.evaluator_version !== value.candidate.evaluator_version) throw new Error("双模型评测器版本不同");
+      for (const key of ["iou_thresholds", "include_diagnostics", "include_image_summaries", "include_pr_curves", "ignore_policy"]) {
+        if (JSON.stringify(value.baseline.config[key]) !== JSON.stringify(value.candidate.config[key])) throw new Error("双模型评测配置不同");
+      }
+      for (const key of ["images", "categories", "ground_truths"]) {
+        if (value.baseline.counts[key] !== value.candidate.counts[key]) throw new Error("双模型真值计数不同");
+      }
       arrayField(value.metrics, "metrics");
       arrayField(value.classes, "classes");
       arrayField(value.image_changes, "image_changes");
       safeIds(value.classes, ["category_id"], "classes");
       safeIds(value.image_changes, ["image_id"], "image_changes");
-      if (METRICS.some((name) => !value.metrics.some((row) => object(row) && row.name === name))) {
-        throw new Error("双模型报告缺少 12 项总体指标");
+      comparisonMetrics(value.metrics, value.baseline.summary, value.candidate.summary, "总体");
+      const baselineClasses = new Map(value.baseline.classes.map(row => [row.category_id, row.metrics]));
+      const candidateClasses = new Map(value.candidate.classes.map(row => [row.category_id, row.metrics]));
+      const categories = new Set();
+      if (value.classes.length !== baselineClasses.size || value.classes.length !== candidateClasses.size) throw new Error("双模型比较类别数量不同");
+      for (const row of value.classes) {
+        if (!object(row) || categories.has(row.category_id) || !baselineClasses.has(row.category_id) || !candidateClasses.has(row.category_id)) {
+          throw new Error("双模型比较类别缺失、未知或重复");
+        }
+        categories.add(row.category_id);
+        comparisonMetrics(row.metrics, baselineClasses.get(row.category_id), candidateClasses.get(row.category_id), `类别 ${row.category_id}`);
       }
       return { kind: "comparison", raw: value };
     }

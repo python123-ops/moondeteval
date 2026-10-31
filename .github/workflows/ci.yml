@@ -87,7 +87,7 @@ jobs:
       - name: Compare COCO polygon rasterization and mask AP
         run: python examples/polygon_reference.py
       - name: Verify candidate archive independently
-        run: python examples/consumer/archive_smoke.py --archive _build/publish/python123-ops-moondeteval-0.2.0.zip
+        run: python examples/consumer/archive_smoke.py --archive _build/publish/python123-ops-moondeteval-0.2.1.zip
       - name: Generate static product site and CLI reports
         run: |
           git status --porcelain=v1 --untracked-files=all

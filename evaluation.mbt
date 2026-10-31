@@ -1235,7 +1235,7 @@ fn evaluate_internal(
   }
   {
     schema_version: "0.1.0",
-    evaluator_version: "0.2.0",
+    evaluator_version: "0.2.1",
     iou_type,
     config,
     counts: {

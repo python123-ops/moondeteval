@@ -200,7 +200,7 @@ def verify_report(name, report, expected):
     for side, value in (("baseline", left), ("candidate", right)):
         evaluation = object_value(report.get(side), name + "." + side)
         require(evaluation.get("schema_version") == "0.1.0", name + ": wrong evaluation schema")
-        require(evaluation.get("evaluator_version") == "0.2.0", name + ": wrong evaluator version")
+        require(evaluation.get("evaluator_version") == "0.2.1", name + ": wrong evaluator version")
         config = object_value(evaluation.get("config"), name + "." + side + ".config")
         require(config.get("ignore_policy") == "coco_" + geometry, name + ": wrong geometry")
         summary = object_value(evaluation.get("summary"), name + "." + side + ".summary")

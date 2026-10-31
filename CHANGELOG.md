@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.2.1 — 2026-10-31
+
+- Preserve batch success and quality-failure exit codes when a non-UTF-8 console prints a Unicode output path. Check comparison rows against both native summaries and category metrics before displaying a report; reject inconsistent values, undefined deltas, repeated categories and incompatible comparison metadata. AP/AR algorithms, report schema `0.1.0`, and batch format `2` are unchanged.
+- Update native CLI help to describe released metric gates and report `evaluator_version=0.2.1`. Website and batch tooling remain source-checkout tools outside the Mooncakes library archive.
 
 - Add an independent Mooncakes `0.2.0` native CLI check covering bbox and mask/polygon batches with mixed gate outcomes, complete report replay, hashes, invalid inputs and preserved outputs. Import the same generated folders in desktop and mobile viewer tests, including changed-report rejection. Run the installed-release workflow on Linux and Windows before deploying Pages.
 - Verify the deployed Pages commit, three demo reports and public resources after deployment, with bounded retries for stale content and tests for incorrect metrics, hashes and project-path links.

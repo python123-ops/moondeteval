@@ -91,6 +91,23 @@ test('viewer rejects arbitrary demo URLs without issuing a remote request',async
   await page.locator('#load-error').waitFor({state:'visible'});assert.deepEqual(remote,[]);await ctx.close();
 });
 
+test('inconsistent comparison rows are rejected before display and a valid report recovers',async()=>{
+  const [ctx,page]=await context();await page.goto(base+'viewer/');
+  const original=fs.readFileSync(path.join(root,'demos/bbox.json'));
+  for(const change of [value=>value.metrics[1].delta=0,value=>value.classes[0].metrics[1].candidate=1]){
+    const value=JSON.parse(original);change(value);
+    await page.locator('#report-file').setInputFiles({name:'inconsistent.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(value))});
+    await page.locator('#load-error').waitFor({state:'visible'});
+    assert.match(await page.locator('#load-error').textContent(),/比较/);
+    assert.equal(await page.locator('#report-view').isVisible(),false);
+  }
+  await page.locator('#report-file').setInputFiles({name:'original.json',mimeType:'application/json',buffer:original});
+  await page.locator('#report-view').waitFor({state:'visible'});
+  assert.equal(await page.locator('#load-error').isVisible(),false);
+  assert.equal(await page.locator('#overall-table tbody tr').nth(1).locator('td').nth(3).textContent(),'-0.7500');
+  await ctx.close();
+});
+
 test('an older in-flight demo cannot overwrite the newest selection',async()=>{
   const [ctx,page]=await context();let release;const gate=new Promise(resolve=>release=resolve);
   await page.route('**/demos/bbox.json',async route=>{await gate;await route.continue();});

@@ -17,10 +17,10 @@ before(async () => {
     'Set RELEASE_INTEGRATION_RESULT to the installed-release result.json; source builds are not a fallback');
   result = JSON.parse(fs.readFileSync(process.env.RELEASE_INTEGRATION_RESULT, 'utf8'));
   assert.equal(result.status, 'passed');
-  assert.equal(result.version, '0.2.0');
+  assert.match(result.version, /^0\.2\.[01]$/);
   assert.equal(result.source_cli_fallback, false);
   assert.equal(result.cli.source, 'registry');
-  assert.equal(result.cli.package, 'python123-ops/moondeteval/cli@0.2.0');
+  assert.equal(result.cli.package, `python123-ops/moondeteval/cli@${result.version}`);
   assert.equal(result.copied_source_sha256['batch_eval.py'],
     require('node:crypto').createHash('sha256').update(fs.readFileSync(path.join(__dirname, '../examples/batch_eval.py'))).digest('hex'),
     'Regenerate batches after changing the batch runner');
@@ -89,7 +89,7 @@ for (const [mode, viewport] of [
           ['基线参照', '失败', '通过']);
         for (const name of ['candidate', 'unchanged', 'baseline']) {
           const report = JSON.parse(fs.readFileSync(path.join(result.batches[kind], name + '.report.json'), 'utf8'));
-          assert.equal(report.evaluator_version, '0.2.0');
+          assert.equal(report.evaluator_version, result.version);
           await page.locator('#batch-model').selectOption(name);
           await imported(page, name);
           const metric = kind === 'bbox' ? 'ap50' : 'ap';

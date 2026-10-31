@@ -350,6 +350,8 @@ def run_batch(args):
 
 
 def main(argv=None):
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="backslashreplace")
     try:
         result = run_batch(parse_args(argv))
     except (BatchError, OSError) as error:

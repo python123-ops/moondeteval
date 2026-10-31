@@ -3,6 +3,7 @@
 import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -30,6 +31,25 @@ def batch(output, *extra):
 
 
 class BatchEvaluationTest(unittest.TestCase):
+    def test_non_utf8_console_preserves_success_and_quality_failure_exit_codes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            for encoding in ("ascii", "cp1252"):
+                for gated in (False, True):
+                    output = Path(directory) / ("验收 中文 空格-" + encoding + str(gated))
+                    command = [sys.executable, str(SCRIPT), "--ground-truth", str(TRUTH),
+                               "--model", "baseline", str(BASE), "--model", "candidate", str(CANDIDATE),
+                               "--baseline", "baseline", "--output-dir", str(output)]
+                    if gated:
+                        command += ["--max-metric-drop", "ap50=0.1"]
+                    result = subprocess.run(command, cwd=ROOT, capture_output=True,
+                                            env=dict(os.environ, PYTHONIOENCODING=encoding))
+                    self.assertEqual(result.returncode, 3 if gated else 0, result.stderr)
+                    index = json.loads((output / "index.json").read_text(encoding="utf-8"))
+                    self.assertEqual(len(index["models"]), 2)
+                    self.assertTrue(result.stdout.decode(encoding).strip().endswith("index.json"))
+                    if gated:
+                        self.assertEqual(index["metric_gates"]["failed_models"], ["candidate"])
+
     def test_reports_agree_with_native_pairwise_comparison_and_hashes(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "batch"
