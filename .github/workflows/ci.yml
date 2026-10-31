@@ -73,6 +73,7 @@ jobs:
         run: |
           python3 examples/consumer/registry_smoke.py --moondeteval-version 0.1.0
           python3 examples/consumer/registry_smoke.py --moondeteval-version 0.2.0
+          python3 examples/consumer/registry_smoke.py --moondeteval-version 0.2.1
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -147,7 +148,7 @@ jobs:
       - name: Install exact release and verify mixed-quality batches
         env:
           PYTHONIOENCODING: ascii
-        run: python examples/release_integration.py --version 0.2.0 --output-dir "${{ runner.temp }}/release-integration"
+        run: python examples/release_integration.py --version 0.2.1 --output-dir "${{ runner.temp }}/release-integration"
       - name: Install browser test tools
         run: |
           npm install --prefix _build/browser --no-save --package-lock=false playwright@1.62.1

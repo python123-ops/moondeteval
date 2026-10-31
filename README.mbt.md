@@ -10,7 +10,7 @@ Choose an entry point:
 
 | Need | Start here |
 | --- | --- |
-| Evaluate in MoonBit code | [Install and call the library](#install-and-call-the-library) (`moon add python123-ops/moondeteval@0.2.0`) |
+| Evaluate in MoonBit code | [Install and call the library](#install-and-call-the-library) (`moon add python123-ops/moondeteval@0.2.1`) |
 | Evaluate one or two prediction sets from files | [Run the source examples](#run-the-source-examples) (`moon run cli --target native -- --help`) |
 | Inspect an existing JSON report | [Read-only browser viewer](viewer/index.html) |
 | Compare more than two prediction sets | [Batch evaluator](examples/batch_eval.py) |
@@ -160,7 +160,7 @@ python examples/batch_eval.py --ground-truth examples/polygon-ground-truth.json 
 
 This example produces AP values `1`, `1`, `0` and baseline-relative AP differences `0`, `0`, `-1`. Polygon and RLE encodings can coexist within a segm batch. `--iou-type` accepts `bbox` (default) or `segm` and applies to every model in the run. Every report must match that type; missing type markers are accepted only for legacy bbox reports. A segm report requires explicit `iou_type="segm"`. Unknown/mismatched markers and conflicting COCO ignore policies are rejected before publishing the bundle, as are differences in configuration, ground-truth counts or evaluator version.
 
-New indexes use **`format_version="2"`** and record `iou_type` at the top level and in every model entry. Format 1 was bbox-only; consumers should check the version and task before comparing indexes. The tool generates one comparable batch from frozen inputs; it does not merge unrelated indexes or existing reports. Each segm replay command retains `--iou-type segm`. Default bbox commands omit the new CLI flag to remain compatible with the published `0.1.0` native executable; segm requires a `0.2.0` CLI with mask support. Run `python -m unittest examples/batch_eval_test.py -v` for seven integration/boundary checks including exact report replay, three-input mixed encoding, failed-input cleanup and rejected report types.
+New indexes use **`format_version="2"`** and record `iou_type` at the top level and in every model entry. Format 1 was bbox-only; consumers should check the version and task before comparing indexes. The tool generates one comparable batch from frozen inputs; it does not merge unrelated indexes or existing reports. Each segm replay command retains `--iou-type segm`. Default bbox commands omit the new CLI flag to remain compatible with the published `0.1.0` native executable; segm requires a `0.2.0` CLI with mask support. Run `python -m unittest examples/batch_eval_test.py -v` for eight integration/boundary checks including exact report replay, three-input mixed encoding, non-UTF-8 console output, failed-input cleanup and rejected report types.
 
 Real-model validation also used fixed Ultralytics `8.3.0` YOLO11n-seg weights on 64 cached COCO val2017 images, with CPU inference at `imgsz=640` and `320`, `conf=0.001`, NMS IoU `0.7`, `max_det=100`, and `retina_masks=True`. Masks came from original-resolution binary `masks.data`, encoded as RLE; category IDs were mapped by COCO class names. A third input filtered the 640 predictions at confidence `0.25`. All three reports matched `COCOeval(segm)` summary/per-class metrics, 242,400 PR samples, 111,844 diagnostic entries and image counts at tolerance `1e-9`; batch deltas matched direct comparison, and GT polygon-to-RLE conversion/removing supplied detection box area preserved metrics. Reference inputs remove detection `bbox`/`area` to select COCO's mask-area branch. These are subset validation results, not official full-validation accuracy or runtime ML dependencies.
 
@@ -371,7 +371,7 @@ Verify the current archive with `python examples/consumer/archive_smoke.py --arc
 For the installed CLI workflow, set `RELEASE_CHECK_DIR` to a new absolute directory outside this checkout, then run:
 
 ```sh
-python examples/release_integration.py --version 0.2.0 --output-dir "$RELEASE_CHECK_DIR"
+python examples/release_integration.py --version 0.2.1 --output-dir "$RELEASE_CHECK_DIR"
 RELEASE_INTEGRATION_RESULT="$RELEASE_CHECK_DIR/result.json" node --test site/release.browser.test.cjs
 ```
 

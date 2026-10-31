@@ -213,7 +213,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True,
                         help="new absolute directory outside this checkout; preserves reports and result.json")
-    parser.add_argument("--version", default="0.2.0", help="exact published version (default: 0.2.0)")
+    parser.add_argument("--version", default="0.2.1", help="exact published version (default: 0.2.1)")
     args = parser.parse_args()
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", args.version):
         parser.error("--version requires an exact numeric release version")
