@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Add an independent Mooncakes `0.2.0` native CLI check covering bbox and mask/polygon batches with mixed gate outcomes, complete report replay, hashes, invalid inputs and preserved outputs. Import the same generated folders in desktop and mobile viewer tests, including changed-report rejection. Run the installed-release workflow on Linux and Windows before deploying Pages.
+- Verify the deployed Pages commit, three demo reports and public resources after deployment, with bounded retries for stale content and tests for incorrect metrics, hashes and project-path links.
+
 ## 0.2.0 — 2026-10-18
 
 - Index evaluation inputs once by image/category and skip empty groups while retaining global score ranking, empty-image counts and diagnostic ordering. Add bounded per-category mask IoU caches with exact on-demand fallback, optional public API budgets and `--max-iou-cache-pairs` in native/batch evaluation. Zero disables caching; the budget is not a process-memory limit. Existing report/schema and published release behavior are unchanged.

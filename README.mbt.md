@@ -368,6 +368,17 @@ Use a MoonBit 0.10.15-compatible toolchain. Build the static site with `python s
 
 Verify a candidate archive with `python examples/consumer/archive_smoke.py --archive _build/publish/python123-ops-moondeteval-0.2.0.zip` after `moon package`. This extracts the archive into a separate module and tests the core, consumer APIs, native mask comparison and three-input batch segmentation without linking this checkout. `python examples/consumer/registry_smoke.py --moondeteval-version 0.1.0` separately verifies the exact published release; use `--moondeteval-version 0.2.0` to verify the new release, including mask and gate APIs.
 
+For the installed CLI workflow, set `RELEASE_CHECK_DIR` to a new absolute directory outside this checkout, then run:
+
+```sh
+python examples/release_integration.py --version 0.2.0 --output-dir "$RELEASE_CHECK_DIR"
+RELEASE_INTEGRATION_RESULT="$RELEASE_CHECK_DIR/result.json" node --test site/release.browser.test.cjs
+```
+
+The first command installs the exact Mooncakes native CLI into an independent directory containing spaces and Chinese characters. It runs bbox and segmentation batches with both passing and failing candidates, checks exit code `3`, replays the complete reports, verifies hashes, and checks invalid-input and output-preservation behavior. The browser test imports those same folders under a project URL and a mobile local-file URL, compares the displayed metrics and gate failures with the native reports, and rejects a changed report. It requires Playwright and the built site from the checks above; it never substitutes a source-built CLI. In PowerShell, set `$env:RELEASE_INTEGRATION_RESULT` before running the Node command. CI runs this workflow on Linux and Windows; Pages deployment waits for both.
+
+After deployment, verify the expected full commit SHA and all public site resources with `python site/verify_deployment.py --url https://python123-ops.github.io/moondeteval/ --commit FULL_COMMIT_SHA`. This checks the manifest, three report hashes, fixed demo metrics, the bbox regression failure, and resources under the project subpath. `--attempts` and `--retry-delay` allow bounded retries while Pages updates; any remaining mismatch exits with code `1`. Tests for stale commits, altered reports, missing assets and invalid links run with `python -m unittest discover -s site -p verify_deployment_test.py -v`.
+
 ```sh
 moon fmt --check
 moon check --target all --deny-warn

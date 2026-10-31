@@ -98,15 +98,64 @@ jobs:
         env:
           NODE_PATH: ${{ github.workspace }}/_build/browser/node_modules
         run: node --test site/browser.test.cjs
+      - name: Test deployment verification and stale-content rejection
+        run: python -m unittest discover -s site -p verify_deployment_test.py -v
       - name: Upload product site
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v4
         with:
           path: _build/site
 
+  release-integration:
+    name: Registry CLI and viewer (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Configure Windows native compiler
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+      - name: Install MoonBit on Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+      - name: Install MoonBit on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-RestMethod https://cli.moonbitlang.com/install/powershell.ps1 | Invoke-Expression
+          "$env:USERPROFILE\.moon\bin" >> $env:GITHUB_PATH
+      - name: Show toolchain and update registry
+        run: |
+          moon version --all --no-path
+          moon update
+      - name: Install exact release and verify mixed-quality batches
+        run: python examples/release_integration.py --version 0.2.0 --output-dir "${{ runner.temp }}/release-integration"
+      - name: Install browser test tools
+        run: |
+          npm install --prefix _build/browser --no-save --package-lock=false playwright@1.62.1
+          node _build/browser/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Import the same registry-generated batches in the viewer
+        env:
+          NODE_PATH: ${{ github.workspace }}/_build/browser/node_modules
+          RELEASE_INTEGRATION_RESULT: ${{ runner.temp }}/release-integration/result.json
+          RELEASE_VIEWER_ROOT: ${{ github.workspace }}
+        run: node --test site/release.browser.test.cjs
+
   pages:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: moonbit
+    needs: [moonbit, release-integration]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -116,8 +165,17 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
       - name: Deploy product site
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify deployed commit, report hashes and project-path assets
+        env:
+          DEPLOYMENT_URL: ${{ steps.deployment.outputs.page_url }}
+          EXPECTED_COMMIT: ${{ github.sha }}
+        run: python site/verify_deployment.py --url "$DEPLOYMENT_URL" --commit "$EXPECTED_COMMIT" --attempts 6 --retry-delay 10
