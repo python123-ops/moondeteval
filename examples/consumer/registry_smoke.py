@@ -10,8 +10,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 VERSIONS = {
-    "python123-ops/moondeteval": "0.1.0",
-    "python123-ops/mbmot": "0.3.0",
+    "python123-ops/moondeteval": "0.2.2",
+    "python123-ops/mbmot": "0.3.1",
     "python123-ops/moon-cv-geometry": "0.2.2",
 }
 SOURCES = (
@@ -84,15 +84,17 @@ def command(root, *args):
     return run.stdout.strip()
 
 
-def check(root, moondeteval_version="0.1.0"):
+def check(root, moondeteval_version="0.2.2", mbmot_version="0.3.1"):
     versions = dict(VERSIONS)
     versions["python123-ops/moondeteval"] = moondeteval_version
+    versions["python123-ops/mbmot"] = mbmot_version
     for name in SOURCES:
         shutil.copy2(HERE / name, root / name)
     module = root / "moon.mod"
-    module.write_text(module.read_text(encoding="utf-8").replace(
-        "python123-ops/moondeteval@0.1.0",
-        "python123-ops/moondeteval@" + moondeteval_version), encoding="utf-8")
+    manifest = module.read_text(encoding="utf-8")
+    for name, version in versions.items():
+        manifest = manifest.replace(name + "@" + VERSIONS[name], name + "@" + version)
+    module.write_text(manifest, encoding="utf-8")
     if moondeteval_version != "0.1.0":
         shutil.copy2(HERE / "mask_consumer_test.mbt", root / "mask_consumer_test.mbt")
         shutil.copy2(HERE / "gate_consumer_test.mbt", root / "gate_consumer_test.mbt")
@@ -128,17 +130,18 @@ def check(root, moondeteval_version="0.1.0"):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, help="save independent module and result outside the repository")
-    parser.add_argument("--moondeteval-version", default="0.1.0", help="exact published version to verify (default: 0.1.0)")
+    parser.add_argument("--moondeteval-version", default="0.2.2", help="exact published version to verify (default: 0.2.2)")
+    parser.add_argument("--mbmot-version", default="0.3.1", help="exact MBMOT version (default: 0.3.1)")
     args = parser.parse_args()
     if args.output_dir:
         root = args.output_dir.resolve()
         if root.exists():
             parser.error(f"output directory already exists: {root}")
         root.mkdir(parents=True, exist_ok=False)
-        check(root, args.moondeteval_version)
+        check(root, args.moondeteval_version, args.mbmot_version)
     else:
         with tempfile.TemporaryDirectory(prefix="moondeteval-registry-") as directory:
-            check(Path(directory), args.moondeteval_version)
+            check(Path(directory), args.moondeteval_version, args.mbmot_version)
 
 
 if __name__ == "__main__":

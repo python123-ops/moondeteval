@@ -17,7 +17,7 @@ before(async () => {
     'Set RELEASE_INTEGRATION_RESULT to the installed-release result.json; source builds are not a fallback');
   result = JSON.parse(fs.readFileSync(process.env.RELEASE_INTEGRATION_RESULT, 'utf8'));
   assert.equal(result.status, 'passed');
-  assert.match(result.version, /^0\.2\.[01]$/);
+  assert.match(result.version, /^0\.2\.[012]$/);
   assert.equal(result.source_cli_fallback, false);
   assert.equal(result.cli.source, 'registry');
   assert.equal(result.cli.package, `python123-ops/moondeteval/cli@${result.version}`);

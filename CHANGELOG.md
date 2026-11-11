@@ -2,6 +2,8 @@
 
 ## 0.2.2 — 2026-11-11
 
+- Verify the published `0.2.2` package with MBMOT `0.3.1` through the independent consumer; retain exact historical registry combinations. Run the installed `0.2.2` native CLI and the same generated batches in browser checks on Linux and Windows.
+
 - Migrate derived traits to `#derive` for MoonBit 0.10.20 so formatting and `--deny-warn` checks pass; regenerate interfaces without changing public API behavior. Keep `moonbitlang/async@0.21.3`, report schema `0.1.0`, batch format `2`, metrics and CLI exit codes.
 - Decode native YOLO-demo subprocess output as UTF-8 so diagnostics containing Chinese paths also work on Windows with a GBK default console encoding.
 - Add explicit all-target and native release builds to CI, retain registry-release checks separately from the candidate archive, and check latest stable weekly with toolchain and complete shell logs retained on failure. Scheduled runs do not deploy Pages.
