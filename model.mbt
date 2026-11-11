@@ -1,10 +1,11 @@
 ///|
 /// An image declared by the ground-truth dataset.
+#derive(Debug, Eq)
 pub struct Image {
   id : Int32
   width : Int32
   height : Int32
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend Image with Debug::{to_repr}
@@ -40,10 +41,11 @@ pub fn Image::height(self : Image) -> Int32 {
 }
 
 ///|
+#derive(Debug, Eq)
 pub struct Category {
   id : Int32
   name : String
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend Category with Debug::{to_repr}
@@ -71,6 +73,7 @@ pub fn Category::name(self : Category) -> String {
 
 ///|
 /// A validated COCO-style ground-truth object.
+#derive(Debug, Eq)
 pub struct GroundTruth {
   id : Int64
   image_id : Int32
@@ -80,7 +83,7 @@ pub struct GroundTruth {
   area : Double
   iscrowd : Bool
   ignore : Bool
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend GroundTruth with Debug::{to_repr}
@@ -141,6 +144,7 @@ pub fn GroundTruth::ignore(self : GroundTruth) -> Bool {
 
 ///|
 /// A scored detector output. `id` is stable within one evaluation.
+#derive(Debug, Eq)
 pub struct Detection {
   id : Int32
   image_id : Int32
@@ -148,7 +152,7 @@ pub struct Detection {
   bbox : Box
   mask : CocoRle?
   score : Double
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend Detection with Debug::{to_repr}

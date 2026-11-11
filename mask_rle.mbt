@@ -1,12 +1,13 @@
 ///|
 /// A validated COCO mask RLE. Runs alternate background and foreground
 /// pixels in column-major image order, starting with background.
+#derive(Debug, Eq)
 pub struct CocoRle {
   height : Int32
   width : Int32
   counts : Array[Int32]
   foreground_area : Int32
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend CocoRle with Debug::{to_repr}

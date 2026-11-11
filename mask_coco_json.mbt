@@ -1,4 +1,5 @@
 ///|
+#derive(FromJson)
 priv struct CocoMaskAnnotation {
   id : Json
   image_id : Int32
@@ -7,15 +8,16 @@ priv struct CocoMaskAnnotation {
   area : Double
   iscrowd : Json?
   ignore : Json?
-} derive(FromJson)
+}
 
 ///|
+#derive(FromJson)
 priv struct CocoMaskPrediction {
   image_id : Int32
   category_id : Int32
   segmentation : Json
   score : Double
-} derive(FromJson)
+}
 
 ///|
 /// Reads compressed/uncompressed RLE or polygon-ring annotations.

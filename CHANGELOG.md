@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2 — 2026-11-11
+
+- Migrate derived traits to `#derive` for MoonBit 0.10.20 so formatting and `--deny-warn` checks pass; regenerate interfaces without changing public API behavior. Keep `moonbitlang/async@0.21.3`, report schema `0.1.0`, batch format `2`, metrics and CLI exit codes.
+- Decode native YOLO-demo subprocess output as UTF-8 so diagnostics containing Chinese paths also work on Windows with a GBK default console encoding.
+- Add explicit all-target and native release builds to CI, retain registry-release checks separately from the candidate archive, and check latest stable weekly with toolchain and complete shell logs retained on failure. Scheduled runs do not deploy Pages.
+
 ## 0.2.1 — 2026-10-31
 
 - Preserve batch success and quality-failure exit codes when a non-UTF-8 console prints a Unicode output path. Check comparison rows against both native summaries and category metrics before displaying a report; reject inconsistent values, undefined deltas, repeated categories and incompatible comparison metadata. AP/AR algorithms, report schema `0.1.0`, and batch format `2` are unchanged.

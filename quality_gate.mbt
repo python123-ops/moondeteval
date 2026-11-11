@@ -1,11 +1,12 @@
 ///|
 /// A minimum value or maximum baseline-minus-candidate drop, in fraction units.
+#derive(ToJson)
 pub struct GateRule {
   kind : String
   metric : String
   threshold : Double
   category_id : Int32?
-} derive(ToJson)
+}
 
 ///|
 pub extend GateRule with ToJson::{to_json}
@@ -189,13 +190,14 @@ pub fn GateCheck::reason(self : GateCheck) -> String {
 }
 
 ///|
+#derive(ToJson)
 pub struct GateReport {
   format_version : String
   status : String
   undefined_policy : String
   reason : String
   checks : Array[GateCheck]
-} derive(ToJson)
+}
 
 ///|
 pub extend GateReport with ToJson::{to_json}

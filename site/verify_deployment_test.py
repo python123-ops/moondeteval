@@ -39,7 +39,7 @@ def fixtures():
     for name, (geometry, metric, left, right, exit_code) in verifier.DEMO_EXPECTATIONS.items():
         report = {"schema_version": "0.1.0", "metrics": []}
         for side, value in (("baseline", left), ("candidate", right)):
-            report[side] = {"schema_version": "0.1.0", "evaluator_version": "0.2.1",
+            report[side] = {"schema_version": "0.1.0", "evaluator_version": "0.2.2",
                             "config": {"ignore_policy": "coco_" + geometry},
                             "summary": {key: value for key in verifier.METRICS}}
         for key in sorted(verifier.METRICS):

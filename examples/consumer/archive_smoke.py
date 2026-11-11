@@ -96,7 +96,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--archive", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path)
-    parser.add_argument("--expected-version", default="0.2.1")
+    parser.add_argument("--expected-version", default="0.2.2")
     args = parser.parse_args()
     if args.output_dir:
         verify(args.archive.resolve(), args.output_dir.resolve(), args.expected_version)

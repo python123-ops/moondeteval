@@ -20,6 +20,7 @@ def run(source, *options):
         cwd=ROOT,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
 
 

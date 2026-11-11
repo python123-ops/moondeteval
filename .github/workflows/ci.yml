@@ -4,24 +4,39 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: "0 1 * * 1"
 
 jobs:
   moonbit:
     runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
+      - name: Preserve validation logs
+        shell: bash
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/_build/ci-logs"
+          printf '%s\n' 'exec > >(tee -a "$GITHUB_WORKSPACE/_build/ci-logs/validation.log") 2>&1' > "$RUNNER_TEMP/moondeteval-log.sh"
+          echo "BASH_ENV=$RUNNER_TEMP/moondeteval-log.sh" >> "$GITHUB_ENV"
       - name: Install MoonBit
         run: |
           curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
           echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
       - name: Show MoonBit toolchain version
-        run: moon version --all --no-path
+        run: moon version --all | tee _build/ci-logs/toolchain.txt
       - name: Update MoonBit registry
         run: moon update
       - name: Check formatting
         run: moon fmt --check
       - name: Check all stable targets
         run: moon check --target all --deny-warn
+      - name: Build all stable targets
+        run: moon build --target all --deny-warn
+      - name: Build native release CLI
+        run: moon build cli --target native --release --deny-warn
       - name: Test all stable targets
         run: moon test --target all --deny-warn
       - name: Test read-only report viewer model
@@ -88,7 +103,7 @@ jobs:
       - name: Compare COCO polygon rasterization and mask AP
         run: python examples/polygon_reference.py
       - name: Verify candidate archive independently
-        run: python examples/consumer/archive_smoke.py --archive _build/publish/python123-ops-moondeteval-0.2.1.zip
+        run: python examples/consumer/archive_smoke.py --archive _build/publish/python123-ops-moondeteval-0.2.2.zip
       - name: Generate static product site and CLI reports
         run: |
           git status --porcelain=v1 --untracked-files=all
@@ -106,20 +121,37 @@ jobs:
       - name: Test clean-source publication checks
         run: python -m unittest discover -s site -p build_test.py -v
       - name: Upload product site
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && github.event_name != 'schedule'
         uses: actions/upload-pages-artifact@v4
         with:
           path: _build/site
 
+      - name: Upload validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-validation-${{ github.run_attempt }}
+          path: _build/ci-logs/
+          retention-days: 30
+
   release-integration:
     name: Registry CLI and viewer (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, windows-latest]
     steps:
       - uses: actions/checkout@v4
+      - name: Preserve validation logs
+        shell: bash
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/_build/ci-logs"
+          printf '%s\n' 'exec > >(tee -a "$GITHUB_WORKSPACE/_build/ci-logs/validation.log") 2>&1' > "$RUNNER_TEMP/moondeteval-log.sh"
+          echo "BASH_ENV=$RUNNER_TEMP/moondeteval-log.sh" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -143,7 +175,7 @@ jobs:
           "$env:USERPROFILE\.moon\bin" >> $env:GITHUB_PATH
       - name: Show toolchain and update registry
         run: |
-          moon version --all --no-path
+          moon version --all | tee _build/ci-logs/toolchain.txt
           moon update
       - name: Install exact release and verify mixed-quality batches
         env:
@@ -159,9 +191,18 @@ jobs:
           RELEASE_INTEGRATION_RESULT: ${{ runner.temp }}/release-integration/result.json
           RELEASE_VIEWER_ROOT: ${{ github.workspace }}
         run: node --test site/release.browser.test.cjs
+      - name: Upload release integration evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: registry-validation-${{ matrix.os }}-${{ github.run_attempt }}
+          path: |
+            _build/ci-logs/
+            ${{ runner.temp }}/release-integration/result.json
+          retention-days: 30
 
   pages:
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && github.event_name != 'schedule'
     needs: [moonbit, release-integration]
     runs-on: ubuntu-24.04
     permissions:

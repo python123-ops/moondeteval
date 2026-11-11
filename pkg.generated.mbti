@@ -3,6 +3,7 @@ package "python123-ops/moondeteval"
 
 import {
   "moonbitlang/core/debug",
+  "moonbitlang/core/json",
 }
 
 // Values
@@ -43,21 +44,23 @@ pub fn parse_yolo_detections(String, Dataset, Int32, Array[Int32], first_detecti
 pub fn parse_yolo_manifest(String, Dataset) -> YoloManifest raise EvalError
 
 // Errors
+#derive(@debug.Debug)
 pub(all) suberror EvalError {
   InvalidBox(String)
   InvalidInput(String)
   InvalidConfig(String)
-} derive(@debug.Debug)
+}
 pub fn EvalError::message(Self) -> String
 pub fn EvalError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
+#derive(Eq, @debug.Debug)
 pub struct Box {
   x1 : Double
   y1 : Double
   x2 : Double
   y2 : Double
-} derive(Eq, @debug.Debug)
+}
 pub fn Box::area(Self) -> Double
 pub fn Box::equal(Self, Self) -> Bool
 pub fn Box::from_xywh(Double, Double, Double, Double) -> Self raise EvalError
@@ -67,10 +70,11 @@ pub fn Box::not_equal(Self, Self) -> Bool
 pub fn Box::to_repr(Self) -> @debug.Repr
 pub fn Box::to_xywh(Self) -> (Double, Double, Double, Double)
 
+#derive(Eq, @debug.Debug)
 pub struct Category {
   id : Int32
   name : String
-} derive(Eq, @debug.Debug)
+}
 pub fn Category::equal(Self, Self) -> Bool
 pub fn Category::id(Self) -> Int32
 pub fn Category::name(Self) -> String
@@ -78,28 +82,31 @@ pub fn Category::new(Int32, String) -> Self raise EvalError
 pub fn Category::not_equal(Self, Self) -> Bool
 pub fn Category::to_repr(Self) -> @debug.Repr
 
+#derive(@json.ToJson)
 pub struct ClassComparison {
   category_id : Int32
   metrics : Array[MetricChange]
-} derive(ToJson)
+}
 pub fn ClassComparison::category_id(Self) -> Int32
 pub fn ClassComparison::metrics(Self) -> Array[MetricChange]
-pub fn ClassComparison::to_json(Self) -> Json
+pub fn ClassComparison::to_json(Self) -> @json.Json
 
+#derive(@json.ToJson)
 pub struct ClassMetrics {
   category_id : Int32
   metrics : Metrics
-} derive(ToJson)
+}
 pub fn ClassMetrics::category_id(Self) -> Int32
 pub fn ClassMetrics::metrics(Self) -> Metrics
-pub fn ClassMetrics::to_json(Self) -> Json
+pub fn ClassMetrics::to_json(Self) -> @json.Json
 
+#derive(Eq, @debug.Debug)
 pub struct CocoRle {
   height : Int32
   width : Int32
   counts : Array[Int32]
   foreground_area : Int32
-} derive(Eq, @debug.Debug)
+}
 pub fn CocoRle::area(Self) -> Int32
 pub fn CocoRle::crowd_iou(Self, Self) -> Double raise EvalError
 pub fn CocoRle::equal(Self, Self) -> Bool
@@ -113,6 +120,7 @@ pub fn CocoRle::to_compressed(Self) -> String
 pub fn CocoRle::to_repr(Self) -> @debug.Repr
 pub fn CocoRle::width(Self) -> Int32
 
+#derive(@json.ToJson)
 pub struct ComparisonReport {
   schema_version : String
   baseline : EvaluationReport
@@ -120,14 +128,14 @@ pub struct ComparisonReport {
   metrics : Array[MetricChange]
   classes : Array[ClassComparison]
   image_changes : Array[ImageChange]
-} derive(ToJson)
+}
 pub fn ComparisonReport::baseline(Self) -> EvaluationReport
 pub fn ComparisonReport::candidate(Self) -> EvaluationReport
 pub fn ComparisonReport::check_gates(Self, GatePolicy) -> GateReport raise EvalError
 pub fn ComparisonReport::classes(Self) -> Array[ClassComparison]
 pub fn ComparisonReport::image_changes(Self) -> Array[ImageChange]
 pub fn ComparisonReport::metrics(Self) -> Array[MetricChange]
-pub fn ComparisonReport::to_json(Self) -> Json
+pub fn ComparisonReport::to_json(Self) -> @json.Json
 pub fn ComparisonReport::to_json_string(Self) -> String
 
 pub struct Dataset {
@@ -140,6 +148,7 @@ pub fn Dataset::images(Self) -> Array[Image]
 pub fn Dataset::new(Array[Image], Array[Category], Array[GroundTruth]) -> Self raise EvalError
 pub fn Dataset::truths(Self) -> Array[GroundTruth]
 
+#derive(Eq, @debug.Debug)
 pub struct Detection {
   id : Int32
   image_id : Int32
@@ -147,7 +156,7 @@ pub struct Detection {
   bbox : Box
   mask : CocoRle?
   score : Double
-} derive(Eq, @debug.Debug)
+}
 pub fn Detection::bbox(Self) -> Box
 pub fn Detection::category_id(Self) -> Int32
 pub fn Detection::equal(Self, Self) -> Bool
@@ -158,13 +167,14 @@ pub fn Detection::not_equal(Self, Self) -> Bool
 pub fn Detection::score(Self) -> Double
 pub fn Detection::to_repr(Self) -> @debug.Repr
 
+#derive(@json.ToJson)
 pub struct EvalConfig {
   iou_thresholds : Array[Double]
   include_diagnostics : Bool
   include_image_summaries : Bool
   include_pr_curves : Bool
   ignore_policy : String
-} derive(ToJson)
+}
 pub fn EvalConfig::coco() -> Self
 pub fn EvalConfig::ignore_policy(Self) -> String
 pub fn EvalConfig::include_diagnostics(Self) -> Bool
@@ -172,7 +182,7 @@ pub fn EvalConfig::include_image_summaries(Self) -> Bool
 pub fn EvalConfig::include_pr_curves(Self) -> Bool
 pub fn EvalConfig::iou_thresholds(Self) -> Array[Double]
 pub fn EvalConfig::new(Array[Double], include_diagnostics? : Bool, ignore_policy? : String, include_image_summaries? : Bool, include_pr_curves? : Bool) -> Self raise EvalError
-pub fn EvalConfig::to_json(Self) -> Json
+pub fn EvalConfig::to_json(Self) -> @json.Json
 
 pub struct EvaluationReport {
   schema_version : String
@@ -200,9 +210,9 @@ pub fn EvaluationReport::pr_curves(Self) -> Array[PrecisionRecallCurve]
 pub fn EvaluationReport::quality_warnings(Self) -> Array[QualityWarning]
 pub fn EvaluationReport::recall_thresholds(Self) -> Array[Double]
 pub fn EvaluationReport::summary(Self) -> Metrics
-pub fn EvaluationReport::to_json(Self) -> Json
+pub fn EvaluationReport::to_json(Self) -> @json.Json
 pub fn EvaluationReport::to_json_string(Self) -> String
-pub impl ToJson for EvaluationReport
+pub impl @json.ToJson for EvaluationReport
 
 pub struct GateCheck {
   kind : String
@@ -224,8 +234,8 @@ pub fn GateCheck::metric(Self) -> String
 pub fn GateCheck::reason(Self) -> String
 pub fn GateCheck::status(Self) -> String
 pub fn GateCheck::threshold(Self) -> Double
-pub fn GateCheck::to_json(Self) -> Json
-pub impl ToJson for GateCheck
+pub fn GateCheck::to_json(Self) -> @json.Json
+pub impl @json.ToJson for GateCheck
 
 pub struct GatePolicy {
   rules : Array[GateRule]
@@ -234,39 +244,42 @@ pub struct GatePolicy {
 pub fn GatePolicy::from_json_string(String) -> Self raise EvalError
 pub fn GatePolicy::new(Array[GateRule], undefined_policy? : String) -> Self raise EvalError
 pub fn GatePolicy::rules(Self) -> Array[GateRule]
-pub fn GatePolicy::to_json(Self) -> Json
+pub fn GatePolicy::to_json(Self) -> @json.Json
 pub fn GatePolicy::to_json_string(Self) -> String
 pub fn GatePolicy::undefined_policy(Self) -> String
-pub impl ToJson for GatePolicy
+pub impl @json.ToJson for GatePolicy
 
+#derive(@json.ToJson)
 pub struct GateReport {
   format_version : String
   status : String
   undefined_policy : String
   reason : String
   checks : Array[GateCheck]
-} derive(ToJson)
+}
 pub fn GateReport::checks(Self) -> Array[GateCheck]
 pub fn GateReport::reason(Self) -> String
 pub fn GateReport::status(Self) -> String
-pub fn GateReport::to_json(Self) -> Json
+pub fn GateReport::to_json(Self) -> @json.Json
 pub fn GateReport::to_json_string(Self) -> String
 pub fn GateReport::undefined_policy(Self) -> String
 
+#derive(@json.ToJson)
 pub struct GateRule {
   kind : String
   metric : String
   threshold : Double
   category_id : Int32?
-} derive(ToJson)
+}
 pub fn GateRule::category_id(Self) -> Int32?
 pub fn GateRule::kind(Self) -> String
 pub fn GateRule::max_drop(String, Double, category_id? : Int32) -> Self raise EvalError
 pub fn GateRule::metric(Self) -> String
 pub fn GateRule::minimum(String, Double, category_id? : Int32) -> Self raise EvalError
 pub fn GateRule::threshold(Self) -> Double
-pub fn GateRule::to_json(Self) -> Json
+pub fn GateRule::to_json(Self) -> @json.Json
 
+#derive(Eq, @debug.Debug)
 pub struct GroundTruth {
   id : Int64
   image_id : Int32
@@ -276,7 +289,7 @@ pub struct GroundTruth {
   area : Double
   iscrowd : Bool
   ignore : Bool
-} derive(Eq, @debug.Debug)
+}
 pub fn GroundTruth::area(Self) -> Double
 pub fn GroundTruth::bbox(Self) -> Box
 pub fn GroundTruth::category_id(Self) -> Int32
@@ -289,11 +302,12 @@ pub fn GroundTruth::new(Int64, Int32, Int32, Box, area~ : Double, iscrowd? : Boo
 pub fn GroundTruth::not_equal(Self, Self) -> Bool
 pub fn GroundTruth::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub struct Image {
   id : Int32
   width : Int32
   height : Int32
-} derive(Eq, @debug.Debug)
+}
 pub fn Image::equal(Self, Self) -> Bool
 pub fn Image::height(Self) -> Int32
 pub fn Image::id(Self) -> Int32
@@ -302,45 +316,48 @@ pub fn Image::not_equal(Self, Self) -> Bool
 pub fn Image::to_repr(Self) -> @debug.Repr
 pub fn Image::width(Self) -> Int32
 
+#derive(@json.ToJson)
 pub struct ImageChange {
   image_id : Int32
   baseline_errors : Int32
   candidate_errors : Int32
   error_delta : Int32
-} derive(ToJson)
+}
 pub fn ImageChange::baseline_errors(Self) -> Int32
 pub fn ImageChange::candidate_errors(Self) -> Int32
 pub fn ImageChange::error_delta(Self) -> Int32
 pub fn ImageChange::image_id(Self) -> Int32
-pub fn ImageChange::to_json(Self) -> Json
+pub fn ImageChange::to_json(Self) -> @json.Json
 
+#derive(@json.ToJson)
 pub struct ImageSummary {
   image_id : Int32
   tp : Int32
   fp : Int32
   fn_count : Int32
   ignored : Int32
-} derive(ToJson)
+}
 pub fn ImageSummary::fn_count(Self) -> Int32
 pub fn ImageSummary::fp(Self) -> Int32
 pub fn ImageSummary::ignored(Self) -> Int32
 pub fn ImageSummary::image_id(Self) -> Int32
-pub fn ImageSummary::to_json(Self) -> Json
+pub fn ImageSummary::to_json(Self) -> @json.Json
 pub fn ImageSummary::tp(Self) -> Int32
 
+#derive(@json.ToJson)
 pub struct InputCounts {
   images : Int32
   categories : Int32
   ground_truths : Int32
   detections : Int32
   evaluated_detections : Int32
-} derive(ToJson)
+}
 pub fn InputCounts::categories(Self) -> Int32
 pub fn InputCounts::detections(Self) -> Int32
 pub fn InputCounts::evaluated_detections(Self) -> Int32
 pub fn InputCounts::ground_truths(Self) -> Int32
 pub fn InputCounts::images(Self) -> Int32
-pub fn InputCounts::to_json(Self) -> Json
+pub fn InputCounts::to_json(Self) -> @json.Json
 
 pub struct MaskDataset {
   value : Dataset
@@ -390,8 +407,8 @@ pub fn MatchDiagnostic::iou(Self) -> Double
 pub fn MatchDiagnostic::iou_threshold(Self) -> Double
 pub fn MatchDiagnostic::reason(Self) -> String
 pub fn MatchDiagnostic::status(Self) -> String
-pub fn MatchDiagnostic::to_json(Self) -> Json
-pub impl ToJson for MatchDiagnostic
+pub fn MatchDiagnostic::to_json(Self) -> @json.Json
+pub impl @json.ToJson for MatchDiagnostic
 
 pub struct MetricChange {
   name : String
@@ -403,9 +420,10 @@ pub fn MetricChange::baseline(Self) -> Double?
 pub fn MetricChange::candidate(Self) -> Double?
 pub fn MetricChange::delta(Self) -> Double?
 pub fn MetricChange::name(Self) -> String
-pub fn MetricChange::to_json(Self) -> Json
-pub impl ToJson for MetricChange
+pub fn MetricChange::to_json(Self) -> @json.Json
+pub impl @json.ToJson for MetricChange
 
+#derive(@debug.Debug, @json.ToJson)
 pub struct Metrics {
   ap : Double
   ap50 : Double
@@ -419,7 +437,7 @@ pub struct Metrics {
   ar_small : Double
   ar_medium : Double
   ar_large : Double
-} derive(ToJson, @debug.Debug)
+}
 pub fn Metrics::ap(Self) -> Double
 pub fn Metrics::ap50(Self) -> Double
 pub fn Metrics::ap75(Self) -> Double
@@ -432,22 +450,23 @@ pub fn Metrics::ar100(Self) -> Double
 pub fn Metrics::ar_large(Self) -> Double
 pub fn Metrics::ar_medium(Self) -> Double
 pub fn Metrics::ar_small(Self) -> Double
-pub fn Metrics::to_json(Self) -> Json
+pub fn Metrics::to_json(Self) -> @json.Json
 pub fn Metrics::to_repr(Self) -> @debug.Repr
 
+#derive(@json.ToJson)
 pub struct PrecisionRecallCurve {
   category_id : Int32
   iou_threshold : Double
   precision : Array[Double]
   max_recall : Double
   ap : Double
-} derive(ToJson)
+}
 pub fn PrecisionRecallCurve::ap(Self) -> Double
 pub fn PrecisionRecallCurve::category_id(Self) -> Int32
 pub fn PrecisionRecallCurve::iou_threshold(Self) -> Double
 pub fn PrecisionRecallCurve::max_recall(Self) -> Double
 pub fn PrecisionRecallCurve::precision(Self) -> Array[Double]
-pub fn PrecisionRecallCurve::to_json(Self) -> Json
+pub fn PrecisionRecallCurve::to_json(Self) -> @json.Json
 
 pub struct QualityWarning {
   source : String
@@ -461,8 +480,8 @@ pub fn QualityWarning::image_id(Self) -> Int32
 pub fn QualityWarning::kind(Self) -> String
 pub fn QualityWarning::record_id(Self) -> Int64
 pub fn QualityWarning::source(Self) -> String
-pub fn QualityWarning::to_json(Self) -> Json
-pub impl ToJson for QualityWarning
+pub fn QualityWarning::to_json(Self) -> @json.Json
+pub impl @json.ToJson for QualityWarning
 
 pub struct YoloFile {
   image_id : Int32

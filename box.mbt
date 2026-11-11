@@ -1,11 +1,12 @@
 ///|
 /// An axis-aligned rectangle in continuous pixel coordinates.
+#derive(Debug, Eq)
 pub struct Box {
   x1 : Double
   y1 : Double
   x2 : Double
   y2 : Double
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend Box with Debug::{to_repr}
@@ -14,11 +15,12 @@ pub extend Box with Debug::{to_repr}
 pub extend Box with Eq::{equal, not_equal}
 
 ///|
+#derive(Debug)
 pub(all) suberror EvalError {
   InvalidBox(String)
   InvalidInput(String)
   InvalidConfig(String)
-} derive(Debug)
+}
 
 ///|
 pub extend EvalError with Debug::{to_repr}

@@ -50,10 +50,11 @@ pub fn MetricChange::delta(self : MetricChange) -> Double? {
 
 ///|
 /// Category values use the same metric order as the overall comparison.
+#derive(ToJson)
 pub struct ClassComparison {
   category_id : Int32
   metrics : Array[MetricChange]
-} derive(ToJson)
+}
 
 ///|
 pub extend ClassComparison with ToJson::{to_json}
@@ -70,6 +71,7 @@ pub fn ClassComparison::metrics(self : ClassComparison) -> Array[MetricChange] {
 
 ///|
 /// Both evaluations share one dataset and one configuration.
+#derive(ToJson)
 pub struct ComparisonReport {
   schema_version : String
   baseline : EvaluationReport
@@ -77,16 +79,17 @@ pub struct ComparisonReport {
   metrics : Array[MetricChange]
   classes : Array[ClassComparison]
   image_changes : Array[ImageChange]
-} derive(ToJson)
+}
 
 ///|
 /// Candidate minus baseline non-ignored errors at IoU=0.50.
+#derive(ToJson)
 pub struct ImageChange {
   image_id : Int32
   baseline_errors : Int32
   candidate_errors : Int32
   error_delta : Int32
-} derive(ToJson)
+}
 
 ///|
 pub extend ImageChange with ToJson::{to_json}

@@ -1,14 +1,16 @@
 ///|
+#derive(FromJson)
 priv struct YoloManifestJson {
   category_ids : Array[Int32]
   images : Array[Json]
-} derive(FromJson)
+}
 
 ///|
+#derive(FromJson)
 priv struct YoloFileJson {
   image_id : Int32
   file : String
-} derive(FromJson)
+}
 
 ///|
 /// One TXT file, relative to its manifest directory.

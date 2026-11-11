@@ -2,10 +2,11 @@
 // COCO boundary quantization and event encoding adapted from rleFrPoly in
 // cocodataset/cocoapi/common/maskApi.c. See THIRD_PARTY_NOTICES.md (BSD-2-Clause).
 // Boundary samples are streamed: no dense image or boundary-point array.
+#derive(Eq)
 priv struct PolygonPoint {
   x : Int64
   y : Int64
-} derive(Eq)
+}
 
 ///|
 fn polygon_coordinate(

@@ -1,17 +1,20 @@
 ///|
+#derive(FromJson)
 priv struct CocoImage {
   id : Int32
   width : Int32
   height : Int32
-} derive(FromJson)
+}
 
 ///|
+#derive(FromJson)
 priv struct CocoCategory {
   id : Int32
   name : String
-} derive(FromJson)
+}
 
 ///|
+#derive(FromJson)
 priv struct CocoAnnotation {
   id : Json
   image_id : Int32
@@ -20,22 +23,24 @@ priv struct CocoAnnotation {
   area : Double
   iscrowd : Json?
   ignore : Json?
-} derive(FromJson)
+}
 
 ///|
+#derive(FromJson)
 priv struct CocoGroundTruthFile {
   images : Array[Json]
   categories : Array[Json]
   annotations : Array[Json]
-} derive(FromJson)
+}
 
 ///|
+#derive(FromJson)
 priv struct CocoPrediction {
   image_id : Int32
   category_id : Int32
   bbox : Array[Double]
   score : Double
-} derive(FromJson)
+}
 
 ///|
 fn parse_box(

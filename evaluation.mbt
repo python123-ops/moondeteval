@@ -1,5 +1,6 @@
 ///|
 /// One COCO-style summary value. -1 means there are no eligible ground truths.
+#derive(Debug, ToJson)
 pub struct Metrics {
   ap : Double
   ap50 : Double
@@ -13,7 +14,7 @@ pub struct Metrics {
   ar_small : Double
   ar_medium : Double
   ar_large : Double
-} derive(Debug, ToJson)
+}
 
 ///|
 pub extend Metrics with Debug::{to_repr}
@@ -82,10 +83,11 @@ pub fn Metrics::ar_large(self : Metrics) -> Double {
 }
 
 ///|
+#derive(ToJson)
 pub struct ClassMetrics {
   category_id : Int32
   metrics : Metrics
-} derive(ToJson)
+}
 
 ///|
 pub extend ClassMetrics with ToJson::{to_json}
@@ -118,13 +120,14 @@ pub struct EvaluationReport {
 
 ///|
 /// Input sizes and detections retained by the all-area maxDets=100 evaluation.
+#derive(ToJson)
 pub struct InputCounts {
   images : Int32
   categories : Int32
   ground_truths : Int32
   detections : Int32
   evaluated_detections : Int32
-} derive(ToJson)
+}
 
 ///|
 pub extend InputCounts with ToJson::{to_json}
@@ -250,13 +253,14 @@ pub fn EvaluationReport::classes(
 
 ///|
 /// Per-image decisions at IoU=0.50, all areas, maxDets=100 per category.
+#derive(ToJson)
 pub struct ImageSummary {
   image_id : Int32
   tp : Int32
   fp : Int32
   fn_count : Int32
   ignored : Int32
-} derive(ToJson)
+}
 
 ///|
 pub extend ImageSummary with ToJson::{to_json}
@@ -296,13 +300,14 @@ pub fn EvaluationReport::image_summaries(
 ///|
 /// A 101-point COCO precision envelope at one category and IoU threshold.
 /// A value of -1 means this category has no eligible ground truth.
+#derive(ToJson)
 pub struct PrecisionRecallCurve {
   category_id : Int32
   iou_threshold : Double
   precision : Array[Double]
   max_recall : Double
   ap : Double
-} derive(ToJson)
+}
 
 ///|
 pub extend PrecisionRecallCurve with ToJson::{to_json}
@@ -437,13 +442,14 @@ pub fn EvaluationReport::diagnostics(
 
 ///|
 /// AP and AR average over these IoU thresholds. AP50 and AP75 remain fixed probes.
+#derive(ToJson)
 pub struct EvalConfig {
   iou_thresholds : Array[Double]
   include_diagnostics : Bool
   include_image_summaries : Bool
   include_pr_curves : Bool
   ignore_policy : String
-} derive(ToJson)
+}
 
 ///|
 pub extend EvalConfig with ToJson::{to_json}
@@ -1235,7 +1241,7 @@ fn evaluate_internal(
   }
   {
     schema_version: "0.1.0",
-    evaluator_version: "0.2.1",
+    evaluator_version: "0.2.2",
     iou_type,
     config,
     counts: {
